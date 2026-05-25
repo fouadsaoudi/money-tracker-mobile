@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,9 +12,19 @@ class AppSession extends ChangeNotifier {
   final ApiClient api;
   UserProfile? user;
   bool isRestoring = true;
+  Timer? _syncTimer;
 
   bool get isSignedIn => api.token != null;
   String get apiBaseUrl => api.baseUrl;
+
+  void startSyncTimer() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      if (isSignedIn) {
+        await api.syncOutbox();
+      }
+    });
+  }
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,10 +38,14 @@ class AppSession extends ChangeNotifier {
 
     try {
       user = await api.profile();
-    } on ApiException catch (error) {
-      if (error.statusCode == 401) {
+      startSyncTimer();
+    } catch (error) {
+      if (error is ApiException && error.statusCode == 401) {
         await prefs.remove('auth_token');
         api.token = null;
+      } else {
+        // Network offline error, start sync timer anyway for cached session
+        startSyncTimer();
       }
     } finally {
       isRestoring = false;
@@ -41,6 +56,7 @@ class AppSession extends ChangeNotifier {
   Future<void> login(String email, String password) async {
     final auth = await api.login(email: email, password: password);
     await _persistAuth(auth);
+    startSyncTimer();
   }
 
   Future<void> register(String name, String email, String password) async {
@@ -50,6 +66,7 @@ class AppSession extends ChangeNotifier {
       password: password,
     );
     await _persistAuth(auth);
+    startSyncTimer();
   }
 
   Future<void> refreshProfile() async {
@@ -63,6 +80,8 @@ class AppSession extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _syncTimer?.cancel();
+    _syncTimer = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     api.token = null;
@@ -74,6 +93,8 @@ class AppSession extends ChangeNotifier {
     final nextBaseUrl = _normalizeApiBaseUrl(value);
     if (nextBaseUrl == api.baseUrl) return;
 
+    _syncTimer?.cancel();
+    _syncTimer = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(apiBaseUrlPreferenceKey, nextBaseUrl);
     await prefs.remove('auth_token');
@@ -103,5 +124,11 @@ class AppSession extends ChangeNotifier {
     }
 
     return trimmed.replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
   }
 }

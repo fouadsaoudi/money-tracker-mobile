@@ -21,6 +21,35 @@ class _SettingsPageState extends State<SettingsPage> {
   late Future<List<Currency>> currencies = widget.session.api.currencies();
   bool saving = false;
 
+  Future<void> _confirmLogout() async {
+    final bool? shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to log out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.rose,
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true) {
+      await widget.session.logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.session.user;
@@ -147,7 +176,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 14),
           FilledButton.icon(
-            onPressed: widget.session.logout,
+            onPressed: _confirmLogout,
             icon: const Icon(Icons.logout),
             label: const Text('Logout'),
           ),

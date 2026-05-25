@@ -126,89 +126,102 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   ],
                 ),
-                child: NavigationRail(
-                  backgroundColor: Colors.transparent,
-                  extended: true,
-                  selectedIndex: index,
-                  onDestinationSelected: selectDestination,
-                  groupAlignment: -0.72,
-                  leading: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: AppColors.teal,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
                         ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Money Tracker',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
-                  ),
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      label: Text('Dashboard'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.swap_vert),
-                      label: Text('Transactions'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.query_stats),
-                      label: Text('Analytics'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      label: Text('Settings'),
-                    ),
-                  ],
-                  trailing: Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            AddTransactionSideButton(
-                              onPressed: addingTransaction
-                                  ? null
-                                  : addTransaction,
-                              busy: addingTransaction,
+                        child: IntrinsicHeight(
+                          child: NavigationRail(
+                            backgroundColor: Colors.transparent,
+                            extended: true,
+                            selectedIndex: index,
+                            onDestinationSelected: selectDestination,
+                            groupAlignment: -0.72,
+                            leading: Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.teal,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.account_balance_wallet_outlined,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Money Tracker',
+                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  navigateToRoute(GoalsPage.routeName),
-                              icon: const Icon(Icons.flag_outlined),
-                              label: const Text('Goals'),
+                            destinations: const [
+                              NavigationRailDestination(
+                                icon: Icon(Icons.dashboard_outlined),
+                                label: Text('Dashboard'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.swap_vert),
+                                label: Text('Transactions'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.query_stats),
+                                label: Text('Analytics'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.settings_outlined),
+                                label: Text('Settings'),
+                              ),
+                            ],
+                            trailing: Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      AddTransactionSideButton(
+                                        onPressed: addingTransaction
+                                            ? null
+                                            : addTransaction,
+                                        busy: addingTransaction,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            navigateToRoute(GoalsPage.routeName),
+                                        icon: const Icon(Icons.flag_outlined),
+                                        label: const Text('Goals'),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            navigateToRoute(CategoriesPage.routeName),
+                                        icon: const Icon(Icons.category_outlined),
+                                        label: const Text('Categories'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  navigateToRoute(CategoriesPage.routeName),
-                              icon: const Icon(Icons.category_outlined),
-                              label: const Text('Categories'),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  }
                 ),
               ),
               Expanded(child: navigator),
@@ -268,7 +281,12 @@ class _HomeShellState extends State<HomeShell> {
       _ => DashboardPage(session: widget.session),
     };
 
-    return MaterialPageRoute<void>(settings: settings, builder: (_) => page);
+    return PageRouteBuilder<void>(
+      settings: settings,
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+    );
   }
 }
 

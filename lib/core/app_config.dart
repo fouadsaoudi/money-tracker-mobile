@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 const defaultApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:8000/api',
+  defaultValue: 'http://165.22.31.57:8080/api',
 );
 
 const apiBaseUrlPreferenceKey = 'api_base_url';

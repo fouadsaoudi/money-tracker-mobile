@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/api_client.dart';
@@ -74,7 +75,10 @@ class _DashboardPageState extends State<DashboardPage> {
                   children: [
                     ActivityHero(dashboard: dashboard),
                     const SizedBox(height: 8),
-                    DailySpendingCards(dashboard: dashboard),
+                    DailySpendingCards(
+                      dashboard: dashboard,
+                      onRefresh: refresh,
+                    ),
                     const SizedBox(height: 16),
                     SurfacePanel(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
@@ -328,7 +332,7 @@ class HeroPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
@@ -339,11 +343,17 @@ class HeroPill extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 6),
-          Text(
-            '$label $value',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
+          Expanded(
+            child: Center(
+              child: Text(
+                '$label $value',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ],
@@ -353,17 +363,23 @@ class HeroPill extends StatelessWidget {
 }
 
 class DailySpendingCards extends StatelessWidget {
-  const DailySpendingCards({super.key, required this.dashboard});
+  const DailySpendingCards({
+    super.key,
+    required this.dashboard,
+    this.onRefresh,
+  });
 
   final DashboardData dashboard;
+  final FutureOr<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final dailySpending = dashboard.dailySpending;
     final secondaryBudget = dailySpending.budgetTodaySecondary;
+    final daysLeftText = '${dailySpending.daysUntilMonthEnd} days left in month';
     final budgetDetail = secondaryBudget == null
-        ? 'You have a total of ${money(dailySpending.budgetToday, dashboard.reportingCurrency)} to spend today'
-        : '${money(dailySpending.budgetToday, dashboard.reportingCurrency)} = ${money(secondaryBudget.amount, secondaryBudget.currency)} today';
+        ? 'You have a total of ${money(dailySpending.budgetToday, dashboard.reportingCurrency)} to spend today ($daysLeftText)'
+        : '${money(dailySpending.budgetToday, dashboard.reportingCurrency)} = ${money(secondaryBudget.amount, secondaryBudget.currency)} today ($daysLeftText)';
     final remainingToday = double.tryParse(dailySpending.remainingToday) ?? 0;
     final remainingText = money(
       remainingToday < 0
@@ -385,6 +401,8 @@ class DailySpendingCards extends StatelessWidget {
       ),
       detail: budgetDetail,
       color: AppColors.teal,
+      onRefresh: onRefresh,
+      dashboard: dashboard,
     );
 
     final spentCard = DailySpendingCard(
@@ -449,6 +467,8 @@ class DailySpendingCard extends StatelessWidget {
     required this.detail,
     required this.color,
     this.valueColor,
+    this.onRefresh,
+    this.dashboard,
   });
 
   final IconData icon;
@@ -457,6 +477,8 @@ class DailySpendingCard extends StatelessWidget {
   final String detail;
   final Color color;
   final Color? valueColor;
+  final FutureOr<void> Function()? onRefresh;
+  final DashboardData? dashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -501,6 +523,13 @@ class DailySpendingCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onRefresh != null && dashboard != null) ...[
+                const SizedBox(width: 8),
+                _SmallRefreshButton(
+                  onPressed: onRefresh!,
+                  dashboard: dashboard!,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -967,6 +996,161 @@ class CurrencyTotalTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SmallRefreshButton extends StatefulWidget {
+  const _SmallRefreshButton({
+    required this.onPressed,
+    required this.dashboard,
+  });
+
+  final FutureOr<void> Function() onPressed;
+  final DashboardData dashboard;
+
+  @override
+  State<_SmallRefreshButton> createState() => _SmallRefreshButtonState();
+}
+
+class _SmallRefreshButtonState extends State<_SmallRefreshButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _buildCalcRow(String label, String value, {TextStyle? valueStyle}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text(value, style: const TextStyle(fontSize: 13).merge(valueStyle)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handlePress() async {
+    if (_isLoading) return;
+
+    final double combinedBalance = double.tryParse(widget.dashboard.balance) ?? 0;
+    final int days = widget.dashboard.dailySpending.daysUntilMonthEnd;
+    final double budget = days > 0 ? (combinedBalance / days) : combinedBalance;
+    final double spent = double.tryParse(widget.dashboard.dailySpending.spentToday) ?? 0;
+    final double remaining = budget - spent;
+    final currency = widget.dashboard.reportingCurrency;
+
+    final bool? shouldRefresh = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.calculate_outlined, color: AppColors.teal),
+              SizedBox(width: 10),
+              Text('Budget Calculation'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildCalcRow('Net balance:', money(combinedBalance.toString(), currency)),
+              _buildCalcRow('Days remaining:', '$days days'),
+              const Divider(height: 20),
+              _buildCalcRow(
+                'Daily budget:',
+                money(budget.toString(), currency),
+                valueStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              _buildCalcRow('Spent today:', '-${money(spent.toString(), currency)}'),
+              const Divider(height: 20),
+              _buildCalcRow(
+                'Remaining today:',
+                money(remaining.toString(), currency),
+                valueStyle: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: remaining < 0 ? AppColors.rose : AppColors.green,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Would you like to refresh and update these calculations?',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Refresh'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRefresh != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+    _controller.repeat();
+    try {
+      final res = widget.onPressed();
+      if (res is Future) {
+        await res;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _controller.stop();
+        _controller.reset();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        constraints: const BoxConstraints(),
+        onPressed: _handlePress,
+        icon: RotationTransition(
+          turns: _controller,
+          child: Icon(
+            Icons.refresh_rounded,
+            color: AppColors.muted.withValues(alpha: 0.8),
+          ),
+        ),
+        tooltip: 'Refresh calculations',
       ),
     );
   }

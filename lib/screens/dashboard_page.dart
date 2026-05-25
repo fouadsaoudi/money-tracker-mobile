@@ -615,14 +615,12 @@ class WalletTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          wallet.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
+                      Text(
+                        wallet.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       if (wallet.isDefault) ...[
                         const SizedBox(width: 8),
@@ -630,7 +628,6 @@ class WalletTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     wallet.currency.name,
                     style: Theme.of(
@@ -641,17 +638,14 @@ class WalletTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Flexible(
-              flex: 2,
-              child: Text(
-                money(wallet.balance, wallet.currency),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.ink,
-                ),
+            Text(
+              money(wallet.balance, wallet.currency),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: AppColors.ink,
               ),
             ),
             const SizedBox(width: 6),

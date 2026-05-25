@@ -978,16 +978,14 @@ class CurrencyTotalTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              money(total.balance, total.currency),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
+          Text(
+            money(total.balance, total.currency),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),

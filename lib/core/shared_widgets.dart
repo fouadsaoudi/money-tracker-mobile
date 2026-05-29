@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import '../category_style_options.dart';
@@ -222,6 +223,7 @@ class AppPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final connection = ConnectionStatusScope.maybeOf(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1180),
@@ -241,18 +243,177 @@ class AppPage extends StatelessWidget {
                     const SizedBox(width: 4),
                   ],
                   Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w900),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        if (connection != null) ...[
+                          const SizedBox(width: 10),
+                          ConnectionIndicator(
+                            statusListenable: connection.statusListenable,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
+                  if (connection != null) ...[
+                    const SizedBox(width: 4),
+                    SyncHeaderButton(
+                      onPressed: connection.syncing ? null : connection.onSync,
+                      syncing: connection.syncing,
+                      pendingCount: connection.pendingCount,
+                    ),
+                  ],
                   ?action,
                 ],
               ),
             ),
             Expanded(child: child),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class ConnectionStatusScope extends InheritedWidget {
+  const ConnectionStatusScope({
+    super.key,
+    required this.statusListenable,
+    required this.onSync,
+    required this.syncing,
+    required this.pendingCount,
+    required super.child,
+  });
+
+  final ValueListenable<bool?> statusListenable;
+  final VoidCallback onSync;
+  final bool syncing;
+  final int pendingCount;
+
+  static ConnectionStatusScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<ConnectionStatusScope>();
+  }
+
+  @override
+  bool updateShouldNotify(ConnectionStatusScope oldWidget) {
+    return statusListenable != oldWidget.statusListenable ||
+        onSync != oldWidget.onSync ||
+        syncing != oldWidget.syncing ||
+        pendingCount != oldWidget.pendingCount;
+  }
+}
+
+class ConnectionIndicator extends StatelessWidget {
+  const ConnectionIndicator({super.key, required this.statusListenable});
+
+  final ValueListenable<bool?> statusListenable;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool?>(
+      valueListenable: statusListenable,
+      builder: (context, connected, _) {
+        final color = connected == null
+            ? AppColors.muted
+            : connected
+            ? const Color(0xFF16A34A)
+            : Theme.of(context).colorScheme.error;
+        final label = connected == null
+            ? 'Checking connection'
+            : connected
+            ? 'Connected'
+            : 'Offline';
+
+        return Tooltip(
+          message: label,
+          child: Semantics(
+            label: label,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white,
+                  width: 2,
+                  strokeAlign: BorderSide.strokeAlignOutside,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class SyncHeaderButton extends StatelessWidget {
+  const SyncHeaderButton({
+    super.key,
+    required this.onPressed,
+    required this.syncing,
+    required this.pendingCount,
+  });
+
+  final VoidCallback? onPressed;
+  final bool syncing;
+  final int pendingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = pendingCount > 0 ? 'Sync ($pendingCount)' : 'Sync';
+    final compact = MediaQuery.sizeOf(context).width < 520;
+
+    if (compact) {
+      return Tooltip(
+        message: label,
+        child: Badge(
+          isLabelVisible: pendingCount > 0,
+          label: Text('$pendingCount'),
+          child: IconButton(
+            onPressed: onPressed,
+            icon: syncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+          ),
+        ),
+      );
+    }
+
+    return Tooltip(
+      message: label,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: syncing
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.sync, size: 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
       ),
     );
@@ -342,7 +503,9 @@ class RefreshActionButton extends StatelessWidget {
         style: IconButton.styleFrom(
           backgroundColor: AppColors.teal.withValues(alpha: 0.10),
           foregroundColor: AppColors.teal,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         onPressed: onPressed,
         icon: const Icon(Icons.sync, size: 20),
@@ -469,8 +632,8 @@ class TransactionTile extends StatelessWidget {
     final accent = isIncoming
         ? AppColors.green
         : isConvert
-            ? AppColors.teal
-            : AppColors.rose;
+        ? AppColors.teal
+        : AppColors.rose;
     final categoryColor = parseColor(category?.color) ?? accent;
     final note = transaction.note?.trim();
 
@@ -511,7 +674,9 @@ class TransactionTile extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 23,
-                          backgroundColor: categoryColor.withValues(alpha: 0.12),
+                          backgroundColor: categoryColor.withValues(
+                            alpha: 0.12,
+                          ),
                           foregroundColor: categoryColor,
                           child: Icon(iconFor(category?.icon), size: 22),
                         ),
@@ -533,8 +698,8 @@ class TransactionTile extends StatelessWidget {
                               isIncoming
                                   ? Icons.arrow_downward
                                   : isConvert
-                                      ? Icons.currency_exchange
-                                      : Icons.arrow_upward,
+                                  ? Icons.currency_exchange
+                                  : Icons.arrow_upward,
                               size: 11,
                               color: Colors.white,
                             ),
@@ -555,10 +720,11 @@ class TransactionTile extends StatelessWidget {
                                   category?.name ?? 'Uncategorized',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.ink,
-                                  ),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.ink,
+                                      ),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -567,11 +733,17 @@ class TransactionTile extends StatelessWidget {
                           if (note?.isNotEmpty == true) ...[
                             Container(
                               margin: const EdgeInsets.only(top: 6, bottom: 6),
-                              padding: const EdgeInsets.only(left: 8, top: 2, bottom: 2),
+                              padding: const EdgeInsets.only(
+                                left: 8,
+                                top: 2,
+                                bottom: 2,
+                              ),
                               decoration: BoxDecoration(
                                 border: Border(
                                   left: BorderSide(
-                                    color: AppColors.muted.withValues(alpha: 0.3),
+                                    color: AppColors.muted.withValues(
+                                      alpha: 0.3,
+                                    ),
                                     width: 3,
                                   ),
                                 ),
@@ -580,11 +752,14 @@ class TransactionTile extends StatelessWidget {
                                 note!,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.ink.withValues(alpha: 0.7),
-                                  fontStyle: FontStyle.italic,
-                                  height: 1.3,
-                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: AppColors.ink.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                      fontStyle: FontStyle.italic,
+                                      height: 1.3,
+                                    ),
                               ),
                             ),
                           ],
@@ -603,11 +778,16 @@ class TransactionTile extends StatelessWidget {
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerRight,
                             child: Text(
-                              '${isIncoming ? '+' : isConvert ? '⇄ ' : '-'}${money(transaction.amount, currency)}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w900,
-                              ),
+                              '${isIncoming
+                                  ? '+'
+                                  : isConvert
+                                  ? '⇄ '
+                                  : '-'}${money(transaction.amount, currency)}',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: accent,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                             ),
                           ),
                           if (currency?.code != reportingCurrency?.code) ...[
@@ -616,11 +796,15 @@ class TransactionTile extends StatelessWidget {
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerRight,
                               child: Text(
-                                money(transaction.convertedAmount, reportingCurrency),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppColors.muted,
-                                  fontWeight: FontWeight.w500,
+                                money(
+                                  transaction.convertedAmount,
+                                  reportingCurrency,
                                 ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.muted,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                               ),
                             ),
                           ],
@@ -689,8 +873,8 @@ class CompactTransactionTile extends StatelessWidget {
     final accent = isIncoming
         ? AppColors.green
         : isConvert
-            ? AppColors.teal
-            : AppColors.rose;
+        ? AppColors.teal
+        : AppColors.rose;
     final categoryColor = parseColor(category?.color) ?? accent;
     final note = transaction.note?.trim();
 
@@ -731,7 +915,10 @@ class CompactTransactionTile extends StatelessWidget {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Stack(
@@ -739,7 +926,9 @@ class CompactTransactionTile extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 20,
-                          backgroundColor: categoryColor.withValues(alpha: 0.14),
+                          backgroundColor: categoryColor.withValues(
+                            alpha: 0.14,
+                          ),
                           foregroundColor: categoryColor,
                           child: Icon(iconFor(category?.icon), size: 18),
                         ),
@@ -761,8 +950,8 @@ class CompactTransactionTile extends StatelessWidget {
                               isIncoming
                                   ? Icons.arrow_downward
                                   : isConvert
-                                      ? Icons.currency_exchange
-                                      : Icons.arrow_upward,
+                                  ? Icons.currency_exchange
+                                  : Icons.arrow_upward,
                               size: 9,
                               color: Colors.white,
                             ),
@@ -780,10 +969,11 @@ class CompactTransactionTile extends StatelessWidget {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
                           ),
                           if (subtitle.isNotEmpty) ...[
                             const SizedBox(height: 2),
@@ -791,9 +981,8 @@ class CompactTransactionTile extends StatelessWidget {
                               subtitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: AppColors.muted,
-                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.muted),
                             ),
                           ],
                         ],
@@ -806,13 +995,18 @@ class CompactTransactionTile extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerRight,
                         child: Text(
-                          '${isIncoming ? '+' : isConvert ? '⇄ ' : '-'}${money(transaction.amount, currency)}',
+                          '${isIncoming
+                              ? '+'
+                              : isConvert
+                              ? '⇄ '
+                              : '-'}${money(transaction.amount, currency)}',
                           maxLines: 1,
                           textAlign: TextAlign.right,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: accent,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                       ),
                     ),
@@ -851,9 +1045,9 @@ class InlineMetaItem extends StatelessWidget {
         Text(
           text,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: themeColor,
-                fontWeight: FontWeight.w500,
-              ),
+            color: themeColor,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -872,13 +1066,13 @@ class TransactionTypeBadge extends StatelessWidget {
     final color = isIncoming
         ? AppColors.green
         : isConvert
-            ? AppColors.teal
-            : AppColors.rose;
+        ? AppColors.teal
+        : AppColors.rose;
     final text = isIncoming
         ? 'Income'
         : isConvert
-            ? 'Conversion'
-            : 'Expense';
+        ? 'Conversion'
+        : 'Expense';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -890,10 +1084,10 @@ class TransactionTypeBadge extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-            ),
+          color: color,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }

@@ -18,11 +18,7 @@ class LocalDb {
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final pathString = join(dbPath, 'money_tracker.db');
-    return await openDatabase(
-      pathString,
-      version: 1,
-      onCreate: _onCreate,
-    );
+    return await openDatabase(pathString, version: 1, onCreate: _onCreate);
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -126,18 +122,14 @@ class LocalDb {
   // --- Currencies ---
 
   Future<void> _saveCurrencyTxn(Transaction txn, Currency item) async {
-    await txn.insert(
-      'currencies',
-      {
-        'id': item.id,
-        'code': item.code,
-        'name': item.name,
-        'symbol': item.symbol,
-        'decimal_places': item.decimalPlaces,
-        'is_active': item.isActive ? 1 : 0,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await txn.insert('currencies', {
+      'id': item.id,
+      'code': item.code,
+      'name': item.name,
+      'symbol': item.symbol,
+      'decimal_places': item.decimalPlaces,
+      'is_active': item.isActive ? 1 : 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> saveCurrencies(List<Currency> list) async {
@@ -152,7 +144,9 @@ class LocalDb {
   Future<List<Currency>> getCurrencies() async {
     final db = await database;
     final res = await db.query('currencies');
-    return res.map((row) => Currency.fromJson(_currencyRowToJson(row))).toList();
+    return res
+        .map((row) => Currency.fromJson(_currencyRowToJson(row)))
+        .toList();
   }
 
   Future<Currency?> getCurrency(int id) async {
@@ -190,17 +184,13 @@ class LocalDb {
     final db = await database;
     await db.transaction((txn) async {
       for (final item in list) {
-        await txn.insert(
-          'categories',
-          {
-            'id': item.id,
-            'name': item.name,
-            'color': item.color,
-            'icon': item.icon,
-            'is_archived': item.isArchived ? 1 : 0,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert('categories', {
+          'id': item.id,
+          'name': item.name,
+          'color': item.color,
+          'icon': item.icon,
+          'is_archived': item.isArchived ? 1 : 0,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
   }
@@ -208,7 +198,9 @@ class LocalDb {
   Future<List<Category>> getCategories() async {
     final db = await database;
     final res = await db.query('categories');
-    return res.map((row) => Category.fromJson(_categoryRowToJson(row))).toList();
+    return res
+        .map((row) => Category.fromJson(_categoryRowToJson(row)))
+        .toList();
   }
 
   Future<Category?> getCategory(int id) async {
@@ -245,17 +237,13 @@ class LocalDb {
     final db = await database;
     await db.transaction((txn) async {
       for (final item in list) {
-        await txn.insert(
-          'wallets',
-          {
-            'id': item.id,
-            'name': item.name,
-            'balance': item.balance,
-            'is_default': item.isDefault ? 1 : 0,
-            'currency_id': item.currency.id,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert('wallets', {
+          'id': item.id,
+          'name': item.name,
+          'balance': item.balance,
+          'is_default': item.isDefault ? 1 : 0,
+          'currency_id': item.currency.id,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
         await _saveCurrencyTxn(txn, item.currency);
       }
     });
@@ -269,13 +257,15 @@ class LocalDb {
       final currencyId = row['currency_id'] as int;
       final currency = await getCurrency(currencyId);
       if (currency != null) {
-        list.add(Wallet.fromJson({
-          'id': row['id'],
-          'name': row['name'],
-          'balance': row['balance'],
-          'is_default': row['is_default'] == 1,
-          'currency': _currencyToJsonMap(currency),
-        }));
+        list.add(
+          Wallet.fromJson({
+            'id': row['id'],
+            'name': row['name'],
+            'balance': row['balance'],
+            'is_default': row['is_default'] == 1,
+            'currency': _currencyToJsonMap(currency),
+          }),
+        );
       }
     }
     return list;
@@ -314,39 +304,35 @@ class LocalDb {
     final db = await database;
     await db.transaction((txn) async {
       for (final item in list) {
-        await txn.insert(
-          'goals',
-          {
-            'id': item.id,
-            'name': item.name,
-            'target_amount': item.targetAmount,
-            'current_amount': item.currentAmount,
-            'remaining_amount': item.remainingAmount,
-            'progress': item.progress,
-            'contributions_count': item.contributionsCount,
-            'note': item.note,
-            'completed_at': item.completedAt?.toIso8601String(),
-            'currency_id': item.currency.id,
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert('goals', {
+          'id': item.id,
+          'name': item.name,
+          'target_amount': item.targetAmount,
+          'current_amount': item.currentAmount,
+          'remaining_amount': item.remainingAmount,
+          'progress': item.progress,
+          'contributions_count': item.contributionsCount,
+          'note': item.note,
+          'completed_at': item.completedAt?.toIso8601String(),
+          'currency_id': item.currency.id,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
         await _saveCurrencyTxn(txn, item.currency);
 
         // Clean old contributions
-        await txn.delete('goal_contributions', where: 'goal_id = ?', whereArgs: [item.id]);
+        await txn.delete(
+          'goal_contributions',
+          where: 'goal_id = ?',
+          whereArgs: [item.id],
+        );
 
         for (final contrib in item.recentContributions) {
-          await txn.insert(
-            'goal_contributions',
-            {
-              'id': contrib.id,
-              'goal_id': item.id,
-              'amount': contrib.amount,
-              'occurred_on': contrib.occurredOn?.toIso8601String(),
-              'transaction_id': contrib.transaction?.id,
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+          await txn.insert('goal_contributions', {
+            'id': contrib.id,
+            'goal_id': item.id,
+            'amount': contrib.amount,
+            'occurred_on': contrib.occurredOn?.toIso8601String(),
+            'transaction_id': contrib.transaction?.id,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
           if (contrib.transaction != null) {
             await _saveTransactionTxn(txn, contrib.transaction!);
           }
@@ -363,7 +349,11 @@ class LocalDb {
       final currencyId = row['currency_id'] as int;
       final currency = await getCurrency(currencyId);
       if (currency != null) {
-        final contribRows = await db.query('goal_contributions', where: 'goal_id = ?', whereArgs: [row['id']]);
+        final contribRows = await db.query(
+          'goal_contributions',
+          where: 'goal_id = ?',
+          whereArgs: [row['id']],
+        );
         final List<Map<String, dynamic>> contributionsJson = [];
         for (final cRow in contribRows) {
           Map<String, dynamic>? txJson;
@@ -381,19 +371,21 @@ class LocalDb {
           });
         }
 
-        list.add(Goal.fromJson({
-          'id': row['id'],
-          'name': row['name'],
-          'target_amount': row['target_amount'],
-          'current_amount': row['current_amount'],
-          'remaining_amount': row['remaining_amount'],
-          'progress': row['progress'],
-          'contributions_count': row['contributions_count'],
-          'note': row['note'],
-          'completed_at': row['completed_at'],
-          'recent_contributions': contributionsJson,
-          'currency': _currencyToJsonMap(currency),
-        }));
+        list.add(
+          Goal.fromJson({
+            'id': row['id'],
+            'name': row['name'],
+            'target_amount': row['target_amount'],
+            'current_amount': row['current_amount'],
+            'remaining_amount': row['remaining_amount'],
+            'progress': row['progress'],
+            'contributions_count': row['contributions_count'],
+            'note': row['note'],
+            'completed_at': row['completed_at'],
+            'recent_contributions': contributionsJson,
+            'currency': _currencyToJsonMap(currency),
+          }),
+        );
       }
     }
     return list;
@@ -401,52 +393,49 @@ class LocalDb {
 
   // --- Transactions ---
 
-  Future<void> _saveTransactionTxn(Transaction txn, TransactionRecord item) async {
-    await txn.insert(
-      'transactions',
-      {
-        'id': item.id,
-        'type': item.type,
-        'amount': item.amount,
-        'note': item.note,
-        'occurred_on': item.occurredOn?.toIso8601String(),
-        'converted_amount': item.convertedAmount,
-        'category_id': item.category?.id,
-        'wallet_id': item.wallet?.id,
-        'currency_id': item.currency?.id,
-        'reporting_currency_id': item.reportingCurrency?.id,
-        'invoice_images': jsonEncode(item.invoiceImages.map((e) => {'id': e.id, 'url': e.url}).toList()),
-        'invoice_image_urls': jsonEncode(item.invoiceImageUrls),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    if (item.currency != null) await _saveCurrencyTxn(txn, item.currency!);
-    if (item.reportingCurrency != null) await _saveCurrencyTxn(txn, item.reportingCurrency!);
+  Future<void> _saveTransactionTxn(
+    Transaction txn,
+    TransactionRecord item,
+  ) async {
+    await txn.insert('transactions', {
+      'id': item.id,
+      'type': item.type,
+      'amount': item.amount,
+      'note': item.note,
+      'occurred_on': item.occurredOn?.toIso8601String(),
+      'converted_amount': item.convertedAmount,
+      'category_id': item.category?.id,
+      'wallet_id': item.wallet?.id,
+      'currency_id': item.currency?.id,
+      'reporting_currency_id': item.reportingCurrency?.id,
+      'invoice_images': jsonEncode(
+        item.invoiceImages.map((e) => {'id': e.id, 'url': e.url}).toList(),
+      ),
+      'invoice_image_urls': jsonEncode(item.invoiceImageUrls),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    if (item.currency != null) {
+      await _saveCurrencyTxn(txn, item.currency!);
+    }
+    if (item.reportingCurrency != null) {
+      await _saveCurrencyTxn(txn, item.reportingCurrency!);
+    }
     if (item.category != null) {
-      await txn.insert(
-        'categories',
-        {
-          'id': item.category!.id,
-          'name': item.category!.name,
-          'color': item.category!.color,
-          'icon': item.category!.icon,
-          'is_archived': item.category!.isArchived ? 1 : 0,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await txn.insert('categories', {
+        'id': item.category!.id,
+        'name': item.category!.name,
+        'color': item.category!.color,
+        'icon': item.category!.icon,
+        'is_archived': item.category!.isArchived ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     if (item.wallet != null) {
-      await txn.insert(
-        'wallets',
-        {
-          'id': item.wallet!.id,
-          'name': item.wallet!.name,
-          'balance': item.wallet!.balance,
-          'is_default': item.wallet!.isDefault ? 1 : 0,
-          'currency_id': item.wallet!.currency.id,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await txn.insert('wallets', {
+        'id': item.wallet!.id,
+        'name': item.wallet!.name,
+        'balance': item.wallet!.balance,
+        'is_default': item.wallet!.isDefault ? 1 : 0,
+        'currency_id': item.wallet!.currency.id,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       await _saveCurrencyTxn(txn, item.wallet!.currency);
     }
   }
@@ -462,7 +451,11 @@ class LocalDb {
 
   Future<TransactionRecord?> getTransaction(int id) async {
     final db = await database;
-    final res = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
+    final res = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     if (res.isEmpty) return null;
     final row = res.first;
 
@@ -476,10 +469,16 @@ class LocalDb {
     final currency = currencyId != null ? await getCurrency(currencyId) : null;
 
     final reportingCurrencyId = row['reporting_currency_id'] as int?;
-    final reportingCurrency = reportingCurrencyId != null ? await getCurrency(reportingCurrencyId) : null;
+    final reportingCurrency = reportingCurrencyId != null
+        ? await getCurrency(reportingCurrencyId)
+        : null;
 
-    final List<dynamic> invoiceImagesRaw = jsonDecode(row['invoice_images'] as String? ?? '[]');
-    final List<dynamic> invoiceImageUrlsRaw = jsonDecode(row['invoice_image_urls'] as String? ?? '[]');
+    final List<dynamic> invoiceImagesRaw = jsonDecode(
+      row['invoice_images'] as String? ?? '[]',
+    );
+    final List<dynamic> invoiceImageUrlsRaw = jsonDecode(
+      row['invoice_image_urls'] as String? ?? '[]',
+    );
 
     return TransactionRecord.fromJson({
       'id': row['id'],
@@ -491,13 +490,19 @@ class LocalDb {
       'category': category != null ? _categoryToJsonMap(category) : null,
       'wallet': wallet != null ? _walletToJsonMap(wallet) : null,
       'currency': currency != null ? _currencyToJsonMap(currency) : null,
-      'reporting_currency': reportingCurrency != null ? _currencyToJsonMap(reportingCurrency) : null,
+      'reporting_currency': reportingCurrency != null
+          ? _currencyToJsonMap(reportingCurrency)
+          : null,
       'invoice_images': invoiceImagesRaw,
       'invoice_image_urls': invoiceImageUrlsRaw,
     });
   }
 
-  Future<List<TransactionRecord>> getTransactions({String? search, int? categoryId, String? type}) async {
+  Future<List<TransactionRecord>> getTransactions({
+    String? search,
+    int? categoryId,
+    String? type,
+  }) async {
     final db = await database;
     var query = 'SELECT id FROM transactions WHERE 1=1';
     final List<dynamic> args = [];
@@ -537,8 +542,12 @@ class LocalDb {
       'category': _categoryToJsonMap(tx.category),
       'wallet': tx.wallet == null ? null : _walletToJsonMap(tx.wallet!),
       'currency': tx.currency == null ? null : _currencyToJsonMap(tx.currency!),
-      'reporting_currency': tx.reportingCurrency == null ? null : _currencyToJsonMap(tx.reportingCurrency!),
-      'invoice_images': tx.invoiceImages.map((e) => {'id': e.id, 'url': e.url}).toList(),
+      'reporting_currency': tx.reportingCurrency == null
+          ? null
+          : _currencyToJsonMap(tx.reportingCurrency!),
+      'invoice_images': tx.invoiceImages
+          .map((e) => {'id': e.id, 'url': e.url})
+          .toList(),
       'invoice_image_urls': tx.invoiceImageUrls,
     };
   }
@@ -547,14 +556,10 @@ class LocalDb {
 
   Future<void> saveDashboard(DashboardData data) async {
     final db = await database;
-    await db.insert(
-      'dashboard_cache',
-      {
-        'id': 1,
-        'json_data': jsonEncode(_dashboardToJsonMap(data)),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('dashboard_cache', {
+      'id': 1,
+      'json_data': jsonEncode(_dashboardToJsonMap(data)),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<DashboardData?> getDashboard() async {
@@ -573,20 +578,31 @@ class LocalDb {
       'daily_spending': {
         'days_until_month_end': data.dailySpending.daysUntilMonthEnd,
         'budget_today': data.dailySpending.budgetToday,
-        'budget_today_secondary': data.dailySpending.budgetTodaySecondary == null ? null : {
-          'amount': data.dailySpending.budgetTodaySecondary!.amount,
-          'currency': _currencyToJsonMap(data.dailySpending.budgetTodaySecondary!.currency),
-        },
+        'budget_today_secondary':
+            data.dailySpending.budgetTodaySecondary == null
+            ? null
+            : {
+                'amount': data.dailySpending.budgetTodaySecondary!.amount,
+                'currency': _currencyToJsonMap(
+                  data.dailySpending.budgetTodaySecondary!.currency,
+                ),
+              },
         'spent_today': data.dailySpending.spentToday,
         'remaining_today': data.dailySpending.remainingToday,
       },
-      'totals_by_currency': data.totalsByCurrency.map((e) => {
-        'currency': _currencyToJsonMap(e.currency),
-        'balance': e.balance,
-        'income': e.income,
-        'expense': e.expense,
-      }).toList(),
-      'recent_transactions': data.recentTransactions.map((e) => _transactionToJsonMap(e)).toList(),
+      'totals_by_currency': data.totalsByCurrency
+          .map(
+            (e) => {
+              'currency': _currencyToJsonMap(e.currency),
+              'balance': e.balance,
+              'income': e.income,
+              'expense': e.expense,
+            },
+          )
+          .toList(),
+      'recent_transactions': data.recentTransactions
+          .map((e) => _transactionToJsonMap(e))
+          .toList(),
     };
   }
 
@@ -594,19 +610,19 @@ class LocalDb {
 
   Future<void> saveAnalytics(String key, AnalyticsData data) async {
     final db = await database;
-    await db.insert(
-      'analytics_cache',
-      {
-        'key': key,
-        'json_data': jsonEncode(_analyticsToJsonMap(data)),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('analytics_cache', {
+      'key': key,
+      'json_data': jsonEncode(_analyticsToJsonMap(data)),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<AnalyticsData?> getAnalytics(String key) async {
     final db = await database;
-    final res = await db.query('analytics_cache', where: 'key = ?', whereArgs: [key]);
+    final res = await db.query(
+      'analytics_cache',
+      where: 'key = ?',
+      whereArgs: [key],
+    );
     if (res.isEmpty) return null;
     return AnalyticsData.fromJson(jsonDecode(res.first['json_data'] as String));
   }
@@ -619,24 +635,35 @@ class LocalDb {
         'income': data.totals.income,
         'expense': data.totals.expense,
       },
-      'totals_by_category': data.byCategory.map((e) => {
-        'category_name': e.categoryName,
-        'balance': e.balance,
-        'income': e.income,
-        'expense': e.expense,
-      }).toList(),
-      'monthly_trend': data.monthlyTrend.map((e) => {
-        'month': e.month,
-        'balance': e.balance,
-        'income': e.income,
-        'expense': e.expense,
-      }).toList(),
+      'totals_by_category': data.byCategory
+          .map(
+            (e) => {
+              'category_name': e.categoryName,
+              'balance': e.balance,
+              'income': e.income,
+              'expense': e.expense,
+            },
+          )
+          .toList(),
+      'monthly_trend': data.monthlyTrend
+          .map(
+            (e) => {
+              'month': e.month,
+              'balance': e.balance,
+              'income': e.income,
+              'expense': e.expense,
+            },
+          )
+          .toList(),
     };
   }
 
   // --- Outbox Queue ---
 
-  Future<void> queueOperation(String methodName, Map<String, dynamic> arguments) async {
+  Future<void> queueOperation(
+    String methodName,
+    Map<String, dynamic> arguments,
+  ) async {
     final db = await database;
     await db.insert('pending_operations', {
       'method_name': methodName,
@@ -648,6 +675,14 @@ class LocalDb {
   Future<List<Map<String, dynamic>>> getPendingOperations() async {
     final db = await database;
     return await db.query('pending_operations', orderBy: 'id ASC');
+  }
+
+  Future<int> pendingOperationCount() async {
+    final db = await database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM pending_operations',
+    );
+    return res.first['count'] as int? ?? 0;
   }
 
   Future<void> deletePendingOperation(int id) async {
@@ -673,18 +708,32 @@ class LocalDb {
     }
   }
 
-  Map<String, dynamic> _replaceIdInMap(Map<String, dynamic> map, int tempId, int realId) {
+  Map<String, dynamic> _replaceIdInMap(
+    Map<String, dynamic> map,
+    int tempId,
+    int realId,
+  ) {
     final Map<String, dynamic> result = {};
     for (final entry in map.entries) {
       final value = entry.value;
-      if (value == tempId && (entry.key.endsWith('_id') || entry.key == 'id' || entry.key == 'categoryId' || entry.key == 'walletId' || entry.key == 'sourceWalletId' || entry.key == 'destinationWalletId')) {
+      if (value == tempId &&
+          (entry.key.endsWith('_id') ||
+              entry.key == 'id' ||
+              entry.key == 'categoryId' ||
+              entry.key == 'walletId' ||
+              entry.key == 'sourceWalletId' ||
+              entry.key == 'destinationWalletId')) {
         result[entry.key] = realId;
       } else if (value is Map<String, dynamic>) {
         result[entry.key] = _replaceIdInMap(value, tempId, realId);
       } else if (value is List) {
         result[entry.key] = value.map((item) {
-          if (item == tempId) return realId;
-          if (item is Map<String, dynamic>) return _replaceIdInMap(item, tempId, realId);
+          if (item == tempId) {
+            return realId;
+          }
+          if (item is Map<String, dynamic>) {
+            return _replaceIdInMap(item, tempId, realId);
+          }
           return item;
         }).toList();
       } else {
@@ -694,20 +743,42 @@ class LocalDb {
     return result;
   }
 
-  Future<void> resolveTemporaryId(String tableName, int tempId, int realId) async {
+  Future<void> resolveTemporaryId(
+    String tableName,
+    int tempId,
+    int realId,
+  ) async {
     final db = await database;
     await db.transaction((txn) async {
-      await txn.rawUpdate('UPDATE $tableName SET id = ? WHERE id = ?', [realId, tempId]);
+      await txn.rawUpdate('UPDATE $tableName SET id = ? WHERE id = ?', [
+        realId,
+        tempId,
+      ]);
 
       if (tableName == 'categories') {
-        await txn.rawUpdate('UPDATE transactions SET category_id = ? WHERE category_id = ?', [realId, tempId]);
+        await txn.rawUpdate(
+          'UPDATE transactions SET category_id = ? WHERE category_id = ?',
+          [realId, tempId],
+        );
       } else if (tableName == 'wallets') {
-        await txn.rawUpdate('UPDATE transactions SET wallet_id = ? WHERE wallet_id = ?', [realId, tempId]);
-        await txn.rawUpdate('UPDATE goal_contributions SET transaction_id = ? WHERE transaction_id = ?', [realId, tempId]);
+        await txn.rawUpdate(
+          'UPDATE transactions SET wallet_id = ? WHERE wallet_id = ?',
+          [realId, tempId],
+        );
+        await txn.rawUpdate(
+          'UPDATE goal_contributions SET transaction_id = ? WHERE transaction_id = ?',
+          [realId, tempId],
+        );
       } else if (tableName == 'goals') {
-        await txn.rawUpdate('UPDATE goal_contributions SET goal_id = ? WHERE goal_id = ?', [realId, tempId]);
+        await txn.rawUpdate(
+          'UPDATE goal_contributions SET goal_id = ? WHERE goal_id = ?',
+          [realId, tempId],
+        );
       } else if (tableName == 'transactions') {
-        await txn.rawUpdate('UPDATE goal_contributions SET transaction_id = ? WHERE transaction_id = ?', [realId, tempId]);
+        await txn.rawUpdate(
+          'UPDATE goal_contributions SET transaction_id = ? WHERE transaction_id = ?',
+          [realId, tempId],
+        );
       }
     });
 
@@ -794,9 +865,12 @@ class LocalDb {
       recent.insert(0, newTx);
       if (recent.length > 10) recent.removeLast();
 
-      final double spent = double.tryParse(dashboard.dailySpending.spentToday) ?? 0;
+      final double spent =
+          double.tryParse(dashboard.dailySpending.spentToday) ?? 0;
       double newSpent = spent;
-      if (occurredOn.day == DateTime.now().day && occurredOn.month == DateTime.now().month && occurredOn.year == DateTime.now().year) {
+      if (occurredOn.day == DateTime.now().day &&
+          occurredOn.month == DateTime.now().month &&
+          occurredOn.year == DateTime.now().year) {
         if (type == 'outgoing') {
           newSpent += txAmount;
         }
@@ -880,8 +954,8 @@ class LocalDb {
     await db.update(
       'wallets',
       {
-        'name':? name,
-        'balance':? balance,
+        'name': ?name,
+        'balance': ?balance,
         if (isDefault != null) 'is_default': isDefault ? 1 : 0,
       },
       where: 'id = ?',
@@ -996,7 +1070,9 @@ class LocalDb {
     final double targetVal = double.tryParse(goal.targetAmount) ?? 0;
     final double newVal = currentVal + contribVal;
     final double remaining = targetVal - newVal;
-    final double progress = targetVal > 0 ? (newVal / targetVal).clamp(0.0, 1.0) : 1.0;
+    final double progress = targetVal > 0
+        ? (newVal / targetVal).clamp(0.0, 1.0)
+        : 1.0;
     final DateTime? completedAt = progress >= 1.0 ? DateTime.now() : null;
 
     await db.update(
@@ -1016,7 +1092,7 @@ class LocalDb {
     return refreshedGoals.firstWhere((e) => e.id == goalId);
   }
 
-  Future<void> convertWalletMoneyLocally({
+  Future<List<TransactionRecord>> convertWalletMoneyLocally({
     required int sourceWalletId,
     required int destinationWalletId,
     required String sourceAmount,
@@ -1024,7 +1100,7 @@ class LocalDb {
     required DateTime occurredOn,
     String? note,
   }) async {
-    await createTransactionLocally(
+    final sourceTransaction = await createTransactionLocally(
       categoryId: -1,
       walletId: sourceWalletId,
       type: 'outgoing',
@@ -1033,7 +1109,7 @@ class LocalDb {
       note: 'Convert Money (Out): ${note ?? ""}',
     );
 
-    await createTransactionLocally(
+    final destinationTransaction = await createTransactionLocally(
       categoryId: -1,
       walletId: destinationWalletId,
       type: 'incoming',
@@ -1041,6 +1117,8 @@ class LocalDb {
       occurredOn: occurredOn,
       note: 'Convert Money (In): ${note ?? ""}',
     );
+
+    return [sourceTransaction, destinationTransaction];
   }
 
   Future<void> deleteTransactionLocally(int id) async {
@@ -1086,9 +1164,13 @@ class LocalDb {
         newTotalExpense -= txAmount;
       }
 
-      final double spent = double.tryParse(dashboard.dailySpending.spentToday) ?? 0;
+      final double spent =
+          double.tryParse(dashboard.dailySpending.spentToday) ?? 0;
       double newSpent = spent;
-      if (tx.occurredOn != null && tx.occurredOn!.day == DateTime.now().day && tx.occurredOn!.month == DateTime.now().month && tx.occurredOn!.year == DateTime.now().year) {
+      if (tx.occurredOn != null &&
+          tx.occurredOn!.day == DateTime.now().day &&
+          tx.occurredOn!.month == DateTime.now().month &&
+          tx.occurredOn!.year == DateTime.now().year) {
         if (tx.type == 'outgoing') {
           newSpent -= txAmount;
         }
@@ -1099,21 +1181,23 @@ class LocalDb {
           : newTotalBalance;
       final double newRemaining = newBudget - newSpent;
 
-      await saveDashboard(DashboardData(
-        reportingCurrency: dashboard.reportingCurrency,
-        balance: newTotalBalance.toStringAsFixed(4),
-        income: newTotalIncome.toStringAsFixed(4),
-        expense: newTotalExpense.toStringAsFixed(4),
-        dailySpending: DailySpending(
-          daysUntilMonthEnd: dashboard.dailySpending.daysUntilMonthEnd,
-          budgetToday: newBudget.toStringAsFixed(4),
-          budgetTodaySecondary: dashboard.dailySpending.budgetTodaySecondary,
-          spentToday: newSpent.toStringAsFixed(4),
-          remainingToday: newRemaining.toStringAsFixed(4),
+      await saveDashboard(
+        DashboardData(
+          reportingCurrency: dashboard.reportingCurrency,
+          balance: newTotalBalance.toStringAsFixed(4),
+          income: newTotalIncome.toStringAsFixed(4),
+          expense: newTotalExpense.toStringAsFixed(4),
+          dailySpending: DailySpending(
+            daysUntilMonthEnd: dashboard.dailySpending.daysUntilMonthEnd,
+            budgetToday: newBudget.toStringAsFixed(4),
+            budgetTodaySecondary: dashboard.dailySpending.budgetTodaySecondary,
+            spentToday: newSpent.toStringAsFixed(4),
+            remainingToday: newRemaining.toStringAsFixed(4),
+          ),
+          totalsByCurrency: dashboard.totalsByCurrency,
+          recentTransactions: recent,
         ),
-        totalsByCurrency: dashboard.totalsByCurrency,
-        recentTransactions: recent,
-      ));
+      );
     }
   }
 }

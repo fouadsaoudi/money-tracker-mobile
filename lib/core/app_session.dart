@@ -19,9 +19,11 @@ class AppSession extends ChangeNotifier {
 
   void startSyncTimer() {
     _syncTimer?.cancel();
+    unawaited(api.checkConnection());
     _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
       if (isSignedIn) {
         await api.syncOutbox();
+        await api.checkConnection();
       }
     });
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_config.dart';
 import '../core/app_session.dart';
+import '../core/local_db.dart';
 import '../core/shared_widgets.dart';
 import '../models/models.dart';
 import 'analytics_page.dart';
@@ -25,6 +26,8 @@ class _HomeShellState extends State<HomeShell> {
   int index = 0;
   String currentRoute = DashboardPage.routeName;
   bool addingTransaction = false;
+  bool syncing = false;
+  int pendingOperationCount = 0;
 
   static const routes = [
     DashboardPage.routeName,
@@ -32,6 +35,17 @@ class _HomeShellState extends State<HomeShell> {
     AnalyticsPage.routeName,
     SettingsPage.routeName,
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    refreshPendingOperationCount();
+  }
+
+  Future<void> refreshPendingOperationCount() async {
+    final count = await LocalDb.instance.pendingOperationCount();
+    if (mounted) setState(() => pendingOperationCount = count);
+  }
 
   void selectDestination(int value) {
     if (value == index && currentRoute == routes[value]) return;
@@ -85,6 +99,7 @@ class _HomeShellState extends State<HomeShell> {
       );
 
       if (created == true) {
+        await refreshPendingOperationCount();
         navigatorKey.currentState?.pushReplacementNamed(currentRoute);
       }
     } catch (error) {
@@ -97,13 +112,49 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  Future<void> syncNow() async {
+    if (syncing) return;
+
+    setState(() => syncing = true);
+
+    try {
+      final synced = await widget.session.api.syncOutbox();
+      await refreshPendingOperationCount();
+      if (!mounted) return;
+
+      navigatorKey.currentState?.pushReplacementNamed(currentRoute);
+      final remaining = pendingOperationCount;
+      final message = remaining > 0
+          ? 'Synced $synced item${synced == 1 ? '' : 's'}. $remaining still pending.'
+          : synced == 0
+          ? 'Nothing to sync.'
+          : 'Synced $synced item${synced == 1 ? '' : 's'}.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not sync: $error')));
+    } finally {
+      if (mounted) setState(() => syncing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
-    final navigator = Navigator(
-      key: navigatorKey,
-      initialRoute: DashboardPage.routeName,
-      onGenerateRoute: routeFor,
+    final navigator = ConnectionStatusScope(
+      statusListenable: widget.session.api.connectionStatus,
+      onSync: syncNow,
+      syncing: syncing,
+      pendingCount: pendingOperationCount,
+      child: Navigator(
+        key: navigatorKey,
+        initialRoute: DashboardPage.routeName,
+        onGenerateRoute: routeFor,
+      ),
     );
 
     if (wide) {
@@ -117,7 +168,9 @@ class _HomeShellState extends State<HomeShell> {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.5),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.ink.withValues(alpha: 0.04),
@@ -141,7 +194,12 @@ class _HomeShellState extends State<HomeShell> {
                             onDestinationSelected: selectDestination,
                             groupAlignment: -0.72,
                             leading: Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                16,
+                                12,
+                                24,
+                              ),
                               child: Row(
                                 children: [
                                   Container(
@@ -160,7 +218,9 @@ class _HomeShellState extends State<HomeShell> {
                                   const SizedBox(width: 10),
                                   const Text(
                                     'Money Tracker',
-                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -187,10 +247,16 @@ class _HomeShellState extends State<HomeShell> {
                               child: Align(
                                 alignment: Alignment.bottomCenter,
                                 child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    0,
+                                    12,
+                                    16,
+                                  ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       AddTransactionSideButton(
                                         onPressed: addingTransaction
@@ -200,16 +266,39 @@ class _HomeShellState extends State<HomeShell> {
                                       ),
                                       const SizedBox(height: 8),
                                       OutlinedButton.icon(
-                                        onPressed: () =>
-                                            navigateToRoute(GoalsPage.routeName),
+                                        onPressed: syncing ? null : syncNow,
+                                        icon: syncing
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.sync),
+                                        label: Text(
+                                          pendingOperationCount > 0
+                                              ? 'Sync ($pendingOperationCount)'
+                                              : 'Sync',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () => navigateToRoute(
+                                          GoalsPage.routeName,
+                                        ),
                                         icon: const Icon(Icons.flag_outlined),
                                         label: const Text('Goals'),
                                       ),
                                       const SizedBox(height: 8),
                                       OutlinedButton.icon(
-                                        onPressed: () =>
-                                            navigateToRoute(CategoriesPage.routeName),
-                                        icon: const Icon(Icons.category_outlined),
+                                        onPressed: () => navigateToRoute(
+                                          CategoriesPage.routeName,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.category_outlined,
+                                        ),
                                         label: const Text('Categories'),
                                       ),
                                     ],
@@ -221,7 +310,7 @@ class _HomeShellState extends State<HomeShell> {
                         ),
                       ),
                     );
-                  }
+                  },
                 ),
               ),
               Expanded(child: navigator),
@@ -256,6 +345,27 @@ class _HomeShellState extends State<HomeShell> {
                 leading: const Icon(Icons.category_outlined),
                 title: const Text('Categories'),
                 onTap: openCategories,
+              ),
+              const Divider(),
+              ListTile(
+                leading: syncing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+                title: Text(
+                  pendingOperationCount > 0
+                      ? 'Sync ($pendingOperationCount)'
+                      : 'Sync',
+                ),
+                onTap: syncing
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        syncNow();
+                      },
               ),
             ],
           ),

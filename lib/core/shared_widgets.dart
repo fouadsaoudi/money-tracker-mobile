@@ -651,172 +651,195 @@ class TransactionTile extends StatelessWidget {
           ),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Container(
-              width: 6,
-              decoration: BoxDecoration(
-                color: categoryColor,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(16),
+      child: Stack(
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  decoration: BoxDecoration(
+                    color: categoryColor,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(16),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    /// Category Circular Icon
-                    Stack(
-                      clipBehavior: Clip.none,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 23,
-                          backgroundColor: categoryColor.withValues(
-                            alpha: 0.12,
-                          ),
-                          foregroundColor: categoryColor,
-                          child: Icon(iconFor(category?.icon), size: 22),
-                        ),
-                        Positioned(
-                          right: -2,
-                          bottom: -2,
-                          child: Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: accent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surface,
-                                width: 2,
+                        /// Category Circular Icon
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              radius: 23,
+                              backgroundColor: categoryColor.withValues(
+                                alpha: 0.12,
+                              ),
+                              foregroundColor: categoryColor,
+                              child: Icon(iconFor(category?.icon), size: 22),
+                            ),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppColors.surface,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  isIncoming
+                                      ? Icons.arrow_downward
+                                      : isConvert
+                                      ? Icons.currency_exchange
+                                      : Icons.arrow_upward,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                            child: Icon(
-                              isIncoming
-                                  ? Icons.arrow_downward
-                                  : isConvert
-                                  ? Icons.currency_exchange
-                                  : Icons.arrow_upward,
-                              size: 11,
-                              color: Colors.white,
-                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      category?.name ?? 'Uncategorized',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.ink,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                              ),
+                              if (note?.isNotEmpty == true) ...[
+                                Container(
+                                  margin: const EdgeInsets.only(
+                                    top: 6,
+                                    bottom: 6,
+                                  ),
+                                  padding: const EdgeInsets.only(
+                                    left: 8,
+                                    top: 2,
+                                    bottom: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: AppColors.muted.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        width: 3,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    note!,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.ink.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          fontStyle: FontStyle.italic,
+                                          height: 1.3,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                              _buildMetadata(context),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 100),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  '${isIncoming
+                                      ? '+'
+                                      : isConvert
+                                      ? '⇄ '
+                                      : '-'}${money(transaction.amount, currency)}',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: accent,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                              if (currency?.code !=
+                                  reportingCurrency?.code) ...[
+                                const SizedBox(height: 4),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    money(
+                                      transaction.convertedAmount,
+                                      reportingCurrency,
+                                    ),
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppColors.muted,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  category?.name ?? 'Uncategorized',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.ink,
-                                      ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                          ),
-                          if (note?.isNotEmpty == true) ...[
-                            Container(
-                              margin: const EdgeInsets.only(top: 6, bottom: 6),
-                              padding: const EdgeInsets.only(
-                                left: 8,
-                                top: 2,
-                                bottom: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  left: BorderSide(
-                                    color: AppColors.muted.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                    width: 3,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                note!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: AppColors.ink.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                      fontStyle: FontStyle.italic,
-                                      height: 1.3,
-                                    ),
-                              ),
-                            ),
-                          ],
-                          _buildMetadata(context),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 100),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              '${isIncoming
-                                  ? '+'
-                                  : isConvert
-                                  ? '⇄ '
-                                  : '-'}${money(transaction.amount, currency)}',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: accent,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                            ),
-                          ),
-                          if (currency?.code != reportingCurrency?.code) ...[
-                            const SizedBox(height: 4),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                money(
-                                  transaction.convertedAmount,
-                                  reportingCurrency,
-                                ),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: AppColors.muted,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 10,
+            child: Text(
+              '(#${transaction.id})',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.muted,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1118,7 +1141,7 @@ class TypeBadge extends StatelessWidget {
       ),
       child: Text(
         defaultWallet
-            ? 'Default'
+            ? 'Pri.'
             : archived
             ? 'Archived'
             : incoming
@@ -1126,6 +1149,7 @@ class TypeBadge extends StatelessWidget {
             : 'Expense',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
+          fontSize: 10,
           fontWeight: FontWeight.w800,
         ),
       ),

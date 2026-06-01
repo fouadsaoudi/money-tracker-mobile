@@ -574,7 +574,7 @@ class WalletTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: wallet.isDefault
               ? AppColors.teal.withValues(alpha: 0.05)
@@ -607,7 +607,7 @@ class WalletTile extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 5),
             Expanded(
               flex: 3,
               child: Column(
@@ -623,7 +623,7 @@ class WalletTile extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       if (wallet.isDefault) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         const TypeBadge(type: 'default'),
                       ],
                     ],
@@ -645,6 +645,7 @@ class WalletTile extends StatelessWidget {
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w900,
+                fontSize: 14,
                 color: AppColors.ink,
               ),
             ),

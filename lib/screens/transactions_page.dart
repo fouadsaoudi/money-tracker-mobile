@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -25,10 +26,19 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final search = TextEditingController();
   String type = '';
   int? categoryId;
+  DateTimeRange? dateRange;
   late Future<TransactionsBundle> future = load();
+  bool loadingMore = false;
+  Object? loadMoreError;
+  int loadGeneration = 0;
+  Timer? searchDebounce;
+  TransactionsBundle? loadedBundle;
+  bool searching = false;
+  Object? searchError;
 
   @override
   void dispose() {
+    searchDebounce?.cancel();
     search.dispose();
     super.dispose();
   }
@@ -39,21 +49,115 @@ class _TransactionsPageState extends State<TransactionsPage> {
         search: search.text.trim(),
         categoryId: categoryId,
         type: type,
+        from: dateRange?.start,
+        to: dateRange?.end,
       ),
       widget.session.api.categories(),
       widget.session.api.wallets(),
     ]);
-    return TransactionsBundle(
+    final bundle = TransactionsBundle(
       transactions: results[0] as PagedTransactions,
       categories: results[1] as List<Category>,
       wallets: results[2] as List<Wallet>,
     );
+    loadedBundle = bundle;
+    return bundle;
   }
 
   void reload() {
+    searchDebounce?.cancel();
     setState(() {
+      loadGeneration++;
+      loadingMore = false;
+      loadMoreError = null;
+      searchError = null;
+      searching = false;
       future = load();
     });
+  }
+
+  void onSearchChanged(String _) {
+    setState(() {});
+    searchDebounce?.cancel();
+    searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      reloadSearchResults,
+    );
+  }
+
+  Future<void> reloadSearchResults() async {
+    searchDebounce?.cancel();
+    final bundle = loadedBundle;
+    if (bundle == null) {
+      reload();
+      return;
+    }
+
+    final generation = ++loadGeneration;
+    setState(() {
+      searching = true;
+      loadingMore = false;
+      loadMoreError = null;
+      searchError = null;
+    });
+
+    try {
+      final transactions = await widget.session.api.transactions(
+        search: search.text.trim(),
+        categoryId: categoryId,
+        type: type,
+        from: dateRange?.start,
+        to: dateRange?.end,
+      );
+      if (!mounted || generation != loadGeneration) return;
+      setState(() {
+        bundle.transactions = transactions;
+        searching = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != loadGeneration) return;
+      setState(() {
+        searching = false;
+        searchError = error;
+      });
+    }
+  }
+
+  Future<void> loadMore(TransactionsBundle bundle) async {
+    if (loadingMore || !bundle.transactions.hasMore) return;
+
+    final generation = loadGeneration;
+    setState(() {
+      loadingMore = true;
+      loadMoreError = null;
+    });
+
+    try {
+      final next = await widget.session.api.transactions(
+        search: search.text.trim(),
+        categoryId: categoryId,
+        type: type,
+        from: dateRange?.start,
+        to: dateRange?.end,
+        page: bundle.transactions.currentPage + 1,
+        preferLocalSearch: bundle.transactions.servedLocally,
+      );
+      if (!mounted || generation != loadGeneration) return;
+      bundle.transactions = PagedTransactions(
+        data: [...bundle.transactions.data, ...next.data],
+        total: next.total,
+        currentPage: next.currentPage,
+        lastPage: next.lastPage,
+        servedLocally: next.servedLocally,
+      );
+    } catch (error) {
+      if (!mounted || generation != loadGeneration) return;
+      loadMoreError = error;
+    } finally {
+      if (mounted && generation == loadGeneration) {
+        setState(() => loadingMore = false);
+      }
+    }
   }
 
   @override
@@ -69,132 +173,216 @@ class _TransactionsPageState extends State<TransactionsPage> {
               final activeCategories = bundle.categories
                   .where((item) => !item.isArchived)
                   .toList();
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: [
-                  SurfacePanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: search,
-                          decoration: InputDecoration(
-                            labelText: 'Search notes',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: IconButton(
-                              tooltip: 'Apply',
-                              onPressed: reload,
-                              icon: const Icon(Icons.check),
-                            ),
-                          ),
-                          onSubmitted: (_) => reload(),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            FilterChip(
-                              avatar: const Icon(Icons.arrow_downward),
-                              label: const Text('Income'),
-                              selected: type == 'incoming',
-                              onSelected: (_) => setState(() {
-                                type = type == 'incoming' ? '' : 'incoming';
-                                future = load();
-                              }),
-                            ),
-                            FilterChip(
-                              avatar: const Icon(Icons.arrow_upward),
-                              label: const Text('Expense'),
-                              selected: type == 'outgoing',
-                              onSelected: (_) => setState(() {
-                                type = type == 'outgoing' ? '' : 'outgoing';
-                                future = load();
-                              }),
-                            ),
-                            SizedBox(
-                              width: 240,
-                              child: DropdownButtonFormField<int?>(
-                                initialValue: categoryId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Category',
-                                ),
-                                items: [
-                                  const DropdownMenuItem<int?>(
-                                    child: Text('All categories'),
-                                  ),
-                                  ...activeCategories.map(
-                                    (category) => DropdownMenuItem<int?>(
-                                      value: category.id,
-                                      child: Text(category.name),
+              return NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.metrics.extentAfter < 300) {
+                    loadMore(bundle);
+                  }
+                  return false;
+                },
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: [
+                    SurfacePanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: search,
+                            decoration: InputDecoration(
+                              labelText: 'Search category, note, or ID',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: searching
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(14),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : search.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      onPressed: () {
+                                        search.clear();
+                                        reloadSearchResults();
+                                      },
+                                      icon: const Icon(Icons.close),
                                     ),
-                                  ),
-                                ],
-                                onChanged: (value) => setState(() {
-                                  categoryId = value;
-                                  future = load();
-                                }),
-                              ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SurfacePanel(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SectionHeader(
-                          title: '${bundle.transactions.total} transactions',
-                        ),
-                        if (bundle.transactions.data.isEmpty)
-                          const EmptyState(text: 'No transactions found.'),
-                        ...bundle.transactions.data.map(
-                          (transaction) => Dismissible(
-                            key: ValueKey(transaction.id),
-                            background: Container(
-                              alignment: Alignment.centerRight,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              padding: const EdgeInsets.only(right: 20),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.error,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.white,
-                              ),
-                            ),
-                            direction: DismissDirection.endToStart,
-                            confirmDismiss: (_) =>
-                                confirm(context, 'Delete this transaction?'),
-                            onDismissed: (_) async {
-                              await widget.session.api.deleteTransaction(
-                                transaction.id,
-                              );
-                              reload();
+                            onChanged: onSearchChanged,
+                            onSubmitted: (_) {
+                              searchDebounce?.cancel();
+                              reloadSearchResults();
                             },
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => editTransaction(bundle, transaction),
-                              child: TransactionTile(transaction),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              FilterChip(
+                                avatar: const Icon(Icons.arrow_downward),
+                                label: const Text('Income'),
+                                selected: type == 'incoming',
+                                onSelected: (_) {
+                                  type = type == 'incoming' ? '' : 'incoming';
+                                  reload();
+                                },
+                              ),
+                              FilterChip(
+                                avatar: const Icon(Icons.arrow_upward),
+                                label: const Text('Expense'),
+                                selected: type == 'outgoing',
+                                onSelected: (_) {
+                                  type = type == 'outgoing' ? '' : 'outgoing';
+                                  reload();
+                                },
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: DropdownButtonFormField<int?>(
+                                  initialValue: categoryId,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Category',
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<int?>(
+                                      child: Text('All categories'),
+                                    ),
+                                    ...activeCategories.map(
+                                      (category) => DropdownMenuItem<int?>(
+                                        value: category.id,
+                                        child: Text(category.name),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    categoryId = value;
+                                    reload();
+                                  },
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: pickDateRange,
+                                icon: const Icon(Icons.date_range_outlined),
+                                label: Text(
+                                  dateRange == null
+                                      ? 'Filter dates'
+                                      : '${isoDate(dateRange!.start)} to '
+                                            '${isoDate(dateRange!.end)}',
+                                ),
+                              ),
+                              if (dateRange != null)
+                                IconButton(
+                                  tooltip: 'Clear date filter',
+                                  onPressed: () {
+                                    dateRange = null;
+                                    reload();
+                                  },
+                                  icon: const Icon(Icons.close),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SurfacePanel(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SectionHeader(
+                            title:
+                                'Showing ${bundle.transactions.data.length} of '
+                                '${bundle.transactions.total} transactions',
+                          ),
+                          if (bundle.transactions.data.isEmpty)
+                            const EmptyState(text: 'No transactions found.'),
+                          if (searchError != null)
+                            Center(
+                              child: TextButton.icon(
+                                onPressed: reloadSearchResults,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry search'),
+                              ),
+                            ),
+                          ...bundle.transactions.data.map(
+                            (transaction) => Dismissible(
+                              key: ValueKey(transaction.id),
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.error,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (_) =>
+                                  confirm(context, 'Delete this transaction?'),
+                              onDismissed: (_) async {
+                                await widget.session.api.deleteTransaction(
+                                  transaction.id,
+                                );
+                                reload();
+                              },
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () =>
+                                    editTransaction(bundle, transaction),
+                                child: TransactionTile(transaction),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          if (loadingMore)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                          if (loadMoreError != null)
+                            Center(
+                              child: TextButton.icon(
+                                onPressed: () => loadMore(bundle),
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry loading more'),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               );
             },
           ),
         );
       },
     );
+  }
+
+  Future<void> pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 5, 12, 31),
+      initialDateRange: dateRange,
+    );
+    if (picked == null) return;
+    dateRange = picked;
+    reload();
   }
 
   Future<void> addTransaction(TransactionsBundle bundle) async {
@@ -232,7 +420,7 @@ class TransactionsBundle {
     required this.wallets,
   });
 
-  final PagedTransactions transactions;
+  PagedTransactions transactions;
   final List<Category> categories;
   final List<Wallet> wallets;
 }
@@ -318,7 +506,9 @@ class _TransactionFormState extends State<TransactionForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              editing ? 'Edit transaction' : 'New transaction',
+              editing
+                  ? 'Edit transaction (#${widget.transaction!.id})'
+                  : 'New transaction',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),

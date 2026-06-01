@@ -516,11 +516,32 @@ class ApiClient {
     String? search,
     int? categoryId,
     String? type,
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    bool preferLocalSearch = true,
   }) async {
-    final params = <String, String>{};
-    if (search != null && search.isNotEmpty) params['search'] = search;
+    const perPage = 5;
+    final normalizedSearch = search?.trim() ?? '';
+    final params = <String, String>{'page': '$page', 'per_page': '$perPage'};
+    if (normalizedSearch.isNotEmpty) params['search'] = normalizedSearch;
     if (categoryId != null) params['category_id'] = '$categoryId';
     if (type != null && type.isNotEmpty) params['type'] = type;
+    if (from != null) params['from'] = isoDate(from);
+    if (to != null) params['to'] = isoDate(to);
+
+    if (preferLocalSearch && normalizedSearch.isNotEmpty) {
+      final localMatches = await LocalDb.instance.getTransactions(
+        search: normalizedSearch,
+        categoryId: categoryId,
+        type: type,
+        from: from,
+        to: to,
+      );
+      if (localMatches.isNotEmpty) {
+        return _pagedLocalTransactions(localMatches, page, perPage);
+      }
+    }
 
     try {
       final json = await get('/transactions', params);
@@ -536,11 +557,34 @@ class ApiClient {
           search: search,
           categoryId: categoryId,
           type: type,
+          from: from,
+          to: to,
         );
-        return PagedTransactions(data: list, total: list.length);
+        return _pagedLocalTransactions(list, page, perPage);
       }
       rethrow;
     }
+  }
+
+  PagedTransactions _pagedLocalTransactions(
+    List<TransactionRecord> list,
+    int page,
+    int perPage,
+  ) {
+    final start = (page - 1) * perPage;
+    final data = start >= list.length
+        ? <TransactionRecord>[]
+        : list.sublist(
+            start,
+            start + perPage < list.length ? start + perPage : list.length,
+          );
+    return PagedTransactions(
+      data: data,
+      total: list.length,
+      currentPage: page,
+      lastPage: (list.length / perPage).ceil(),
+      servedLocally: true,
+    );
   }
 
   Future<TransactionRecord> createTransaction({

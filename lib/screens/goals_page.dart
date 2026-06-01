@@ -129,8 +129,14 @@ class _GoalsPageState extends State<GoalsPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-
-      builder: (_) => GoalDetailsSheet(goal: goal),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.35,
+        maxChildSize: 1,
+        builder: (_, scrollController) =>
+            GoalDetailsSheet(goal: goal, scrollController: scrollController),
+      ),
     );
   }
 }
@@ -281,66 +287,63 @@ class GoalCard extends StatelessWidget {
 }
 
 class GoalDetailsSheet extends StatelessWidget {
-  const GoalDetailsSheet({super.key, required this.goal});
+  const GoalDetailsSheet({
+    super.key,
+    required this.goal,
+    required this.scrollController,
+  });
 
   final Goal goal;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height * 0.82;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: ListView(
+        controller: scrollController,
+        children: [
+          Text(
+            goal.name,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              GoalStatChip(
+                icon: Icons.receipt_long_outlined,
+                label: '${goal.contributionsCount} transactions',
+              ),
+              GoalStatChip(
+                icon: Icons.savings_outlined,
+                label: money(goal.currentAmount, goal.currency),
+              ),
+              GoalStatChip(
+                icon: Icons.flag_outlined,
+                label: 'Target ${money(goal.targetAmount, goal.currency)}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (goal.recentContributions.isEmpty)
+            const EmptyState(text: 'No contributions yet.')
+          else
+            ...goal.recentContributions.map((contribution) {
+              final transaction = contribution.transaction;
+              if (transaction != null) {
+                return TransactionTile(transaction);
+              }
 
-    return SizedBox(
-      height: height,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              goal.name,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                GoalStatChip(
-                  icon: Icons.receipt_long_outlined,
-                  label: '${goal.contributionsCount} transactions',
-                ),
-                GoalStatChip(
-                  icon: Icons.savings_outlined,
-                  label: money(goal.currentAmount, goal.currency),
-                ),
-                GoalStatChip(
-                  icon: Icons.flag_outlined,
-                  label: 'Target ${money(goal.targetAmount, goal.currency)}',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: goal.recentContributions.isEmpty
-                  ? const EmptyState(text: 'No contributions yet.')
-                  : ListView(
-                      children: goal.recentContributions.map((contribution) {
-                        final transaction = contribution.transaction;
-                        if (transaction != null) {
-                          return TransactionTile(transaction);
-                        }
-
-                        return CompactContributionRow(
-                          contribution: contribution,
-                          currency: goal.currency,
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ],
-        ),
+              return CompactContributionRow(
+                contribution: contribution,
+                currency: goal.currency,
+              );
+            }),
+        ],
       ),
     );
   }

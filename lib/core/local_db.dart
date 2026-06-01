@@ -502,13 +502,25 @@ class LocalDb {
     String? search,
     int? categoryId,
     String? type,
+    DateTime? from,
+    DateTime? to,
   }) async {
     final db = await database;
-    var query = 'SELECT id FROM transactions WHERE 1=1';
+    var query = 'SELECT transactions.id FROM transactions WHERE 1=1';
     final List<dynamic> args = [];
     if (search != null && search.trim().isNotEmpty) {
-      query += ' AND (note LIKE ? OR amount LIKE ?)';
-      args.addAll(['%${search.trim()}%', '%${search.trim()}%']);
+      query += '''
+        AND (
+          transactions.note LIKE ?
+          OR CAST(transactions.id AS TEXT) = ?
+          OR EXISTS (
+            SELECT 1 FROM categories
+            WHERE categories.id = transactions.category_id
+              AND categories.name LIKE ?
+          )
+        )
+      ''';
+      args.addAll(['%${search.trim()}%', search.trim(), '%${search.trim()}%']);
     }
     if (categoryId != null) {
       query += ' AND category_id = ?';
@@ -518,7 +530,15 @@ class LocalDb {
       query += ' AND type = ?';
       args.add(type);
     }
-    query += ' ORDER BY occurred_on DESC';
+    if (from != null) {
+      query += ' AND occurred_on >= ?';
+      args.add(DateTime(from.year, from.month, from.day).toIso8601String());
+    }
+    if (to != null) {
+      query += ' AND occurred_on < ?';
+      args.add(DateTime(to.year, to.month, to.day + 1).toIso8601String());
+    }
+    query += ' ORDER BY transactions.occurred_on DESC';
 
     final res = await db.rawQuery(query, args);
     final List<TransactionRecord> list = [];

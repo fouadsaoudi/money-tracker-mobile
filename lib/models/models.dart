@@ -268,7 +268,13 @@ class TransactionInvoiceImage {
 }
 
 class PagedTransactions {
-  PagedTransactions({required this.data, required this.total});
+  PagedTransactions({
+    required this.data,
+    required this.total,
+    required this.currentPage,
+    required this.lastPage,
+    this.servedLocally = false,
+  });
 
   factory PagedTransactions.fromJson(Map<String, dynamic> json) {
     final meta = asMap(json['meta']);
@@ -277,11 +283,18 @@ class PagedTransactions {
         json['data'],
       ).map((item) => TransactionRecord.fromJson(asMap(item))).toList(),
       total: asInt(meta['total']),
+      currentPage: asInt(meta['current_page']),
+      lastPage: asInt(meta['last_page']),
     );
   }
 
   final List<TransactionRecord> data;
   final int total;
+  final int currentPage;
+  final int lastPage;
+  final bool servedLocally;
+
+  bool get hasMore => currentPage < lastPage;
 }
 
 class DashboardData {

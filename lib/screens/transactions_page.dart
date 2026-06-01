@@ -36,6 +36,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
   bool searching = false;
   Object? searchError;
 
+  int get activeFilterCount =>
+      (type.isEmpty ? 0 : 1) +
+      (categoryId == null ? 0 : 1) +
+      (dateRange == null ? 0 : 1);
+
   @override
   void dispose() {
     searchDebounce?.cancel();
@@ -173,197 +178,176 @@ class _TransactionsPageState extends State<TransactionsPage> {
               final activeCategories = bundle.categories
                   .where((item) => !item.isArchived)
                   .toList();
-              return NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (notification.metrics.extentAfter < 300) {
-                    loadMore(bundle);
-                  }
-                  return false;
-                },
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  children: [
-                    SurfacePanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SurfacePanel(
+                      child: Row(
                         children: [
-                          TextField(
-                            controller: search,
-                            decoration: InputDecoration(
-                              labelText: 'Search category, note, or ID',
-                              prefixIcon: const Icon(Icons.search),
-                              suffixIcon: searching
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(14),
-                                      child: SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
+                          Expanded(
+                            child: TextField(
+                              controller: search,
+                              decoration: InputDecoration(
+                                labelText: 'Search category, note, or ID',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: searching
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(14),
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         ),
+                                      )
+                                    : search.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: 'Clear search',
+                                        onPressed: () {
+                                          search.clear();
+                                          reloadSearchResults();
+                                        },
+                                        icon: const Icon(Icons.close),
                                       ),
-                                    )
-                                  : search.text.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: 'Clear search',
-                                      onPressed: () {
-                                        search.clear();
-                                        reloadSearchResults();
-                                      },
-                                      icon: const Icon(Icons.close),
-                                    ),
+                              ),
+                              onChanged: onSearchChanged,
+                              onSubmitted: (_) {
+                                searchDebounce?.cancel();
+                                reloadSearchResults();
+                              },
                             ),
-                            onChanged: onSearchChanged,
-                            onSubmitted: (_) {
-                              searchDebounce?.cancel();
-                              reloadSearchResults();
-                            },
                           ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            crossAxisAlignment: WrapCrossAlignment.center,
+                          const SizedBox(width: 5),
+                          Stack(
+                            clipBehavior: Clip.none,
                             children: [
-                              FilterChip(
-                                avatar: const Icon(Icons.arrow_downward),
-                                label: const Text('Income'),
-                                selected: type == 'incoming',
-                                onSelected: (_) {
-                                  type = type == 'incoming' ? '' : 'incoming';
-                                  reload();
-                                },
+                              IconButton.filledTonal(
+                                tooltip: 'Filter transactions',
+                                onPressed: () => showFilters(activeCategories),
+                                icon: const Icon(Icons.filter_alt_outlined),
                               ),
-                              FilterChip(
-                                avatar: const Icon(Icons.arrow_upward),
-                                label: const Text('Expense'),
-                                selected: type == 'outgoing',
-                                onSelected: (_) {
-                                  type = type == 'outgoing' ? '' : 'outgoing';
-                                  reload();
-                                },
-                              ),
-                              SizedBox(
-                                width: 240,
-                                child: DropdownButtonFormField<int?>(
-                                  initialValue: categoryId,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Category',
-                                  ),
-                                  items: [
-                                    const DropdownMenuItem<int?>(
-                                      child: Text('All categories'),
+                              if (activeFilterCount > 0)
+                                Positioned(
+                                  top: -5,
+                                  right: -5,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.teal,
+                                      shape: BoxShape.circle,
                                     ),
-                                    ...activeCategories.map(
-                                      (category) => DropdownMenuItem<int?>(
-                                        value: category.id,
-                                        child: Text(category.name),
+                                    child: Text(
+                                      '$activeFilterCount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
                                       ),
                                     ),
-                                  ],
-                                  onChanged: (value) {
-                                    categoryId = value;
-                                    reload();
-                                  },
-                                ),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: pickDateRange,
-                                icon: const Icon(Icons.date_range_outlined),
-                                label: Text(
-                                  dateRange == null
-                                      ? 'Filter dates'
-                                      : '${isoDate(dateRange!.start)} to '
-                                            '${isoDate(dateRange!.end)}',
-                                ),
-                              ),
-                              if (dateRange != null)
-                                IconButton(
-                                  tooltip: 'Clear date filter',
-                                  onPressed: () {
-                                    dateRange = null;
-                                    reload();
-                                  },
-                                  icon: const Icon(Icons.close),
+                                  ),
                                 ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    SurfacePanel(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.metrics.extentAfter < 300) {
+                          loadMore(bundle);
+                        }
+                        return false;
+                      },
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                         children: [
-                          SectionHeader(
-                            title:
-                                'Showing ${bundle.transactions.data.length} of '
-                                '${bundle.transactions.total} transactions',
-                          ),
-                          if (bundle.transactions.data.isEmpty)
-                            const EmptyState(text: 'No transactions found.'),
-                          if (searchError != null)
-                            Center(
-                              child: TextButton.icon(
-                                onPressed: reloadSearchResults,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry search'),
-                              ),
-                            ),
-                          ...bundle.transactions.data.map(
-                            (transaction) => Dismissible(
-                              key: ValueKey(transaction.id),
-                              background: Container(
-                                alignment: Alignment.centerRight,
-                                margin: const EdgeInsets.only(bottom: 10),
-                                padding: const EdgeInsets.only(right: 20),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.error,
-                                  borderRadius: BorderRadius.circular(16),
+                          SurfacePanel(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SectionHeader(
+                                  title:
+                                      'Showing ${bundle.transactions.data.length} of '
+                                      '${bundle.transactions.total} transactions',
                                 ),
-                                child: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.white,
+                                if (bundle.transactions.data.isEmpty)
+                                  const EmptyState(
+                                    text: 'No transactions found.',
+                                  ),
+                                if (searchError != null)
+                                  Center(
+                                    child: TextButton.icon(
+                                      onPressed: reloadSearchResults,
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Retry search'),
+                                    ),
+                                  ),
+                                ...bundle.transactions.data.map(
+                                  (transaction) => Dismissible(
+                                    key: ValueKey(transaction.id),
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.only(right: 20),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    direction: DismissDirection.endToStart,
+                                    confirmDismiss: (_) => confirm(
+                                      context,
+                                      'Delete this transaction?',
+                                    ),
+                                    onDismissed: (_) async {
+                                      await widget.session.api
+                                          .deleteTransaction(transaction.id);
+                                      reload();
+                                    },
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(16),
+                                      onTap: () =>
+                                          editTransaction(bundle, transaction),
+                                      child: TransactionTile(transaction),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              direction: DismissDirection.endToStart,
-                              confirmDismiss: (_) =>
-                                  confirm(context, 'Delete this transaction?'),
-                              onDismissed: (_) async {
-                                await widget.session.api.deleteTransaction(
-                                  transaction.id,
-                                );
-                                reload();
-                              },
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () =>
-                                    editTransaction(bundle, transaction),
-                                child: TransactionTile(transaction),
-                              ),
+                                if (loadingMore)
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                                if (loadMoreError != null)
+                                  Center(
+                                    child: TextButton.icon(
+                                      onPressed: () => loadMore(bundle),
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Retry loading more'),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                          if (loadingMore)
-                            const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                          if (loadMoreError != null)
-                            Center(
-                              child: TextButton.icon(
-                                onPressed: () => loadMore(bundle),
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry loading more'),
-                              ),
-                            ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),
@@ -372,16 +356,130 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 
-  Future<void> pickDateRange() async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
+  Future<void> showFilters(List<Category> categories) async {
+    var draftType = type;
+    var draftCategoryId = categoryId;
+    var draftDateRange = dateRange;
+    final applied = await showModalBottomSheet<bool>(
       context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(now.year + 5, 12, 31),
-      initialDateRange: dateRange,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            MediaQuery.viewInsetsOf(context).bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Filter transactions',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilterChip(
+                      showCheckmark: false,
+                      side: draftType == 'incoming'
+                          ? const BorderSide(color: AppColors.teal, width: 1.5)
+                          : null,
+                      avatar: const Icon(Icons.arrow_downward),
+                      label: const Text('Income'),
+                      selected: draftType == 'incoming',
+                      onSelected: (_) => setSheetState(() {
+                        draftType = draftType == 'incoming' ? '' : 'incoming';
+                      }),
+                    ),
+                    FilterChip(
+                      showCheckmark: false,
+                      side: draftType == 'outgoing'
+                          ? const BorderSide(color: AppColors.teal, width: 1.5)
+                          : null,
+                      avatar: const Icon(Icons.arrow_upward),
+                      label: const Text('Expense'),
+                      selected: draftType == 'outgoing',
+                      onSelected: (_) => setSheetState(() {
+                        draftType = draftType == 'outgoing' ? '' : 'outgoing';
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<int?>(
+                  initialValue: draftCategoryId,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: [
+                    const DropdownMenuItem<int?>(child: Text('All categories')),
+                    ...categories.map(
+                      (category) => DropdownMenuItem<int?>(
+                        value: category.id,
+                        child: Text(category.name),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setSheetState(() => draftCategoryId = value),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(now.year + 5, 12, 31),
+                      initialDateRange: draftDateRange,
+                    );
+                    if (picked != null) {
+                      setSheetState(() => draftDateRange = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.date_range_outlined),
+                  label: Text(
+                    draftDateRange == null
+                        ? 'Select date range'
+                        : '${isoDate(draftDateRange!.start)} to '
+                              '${isoDate(draftDateRange!.end)}',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => setSheetState(() {
+                        draftType = '';
+                        draftCategoryId = null;
+                        draftDateRange = null;
+                      }),
+                      child: const Text('Clear'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Apply filters'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
-    if (picked == null) return;
-    dateRange = picked;
+    if (applied != true) return;
+    type = draftType;
+    categoryId = draftCategoryId;
+    dateRange = draftDateRange;
     reload();
   }
 

@@ -55,7 +55,7 @@ class _AuthScreenState extends State<AuthScreen> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.ink,
+        backgroundColor: AppColors.authBackground,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -184,15 +184,13 @@ class _AuthScreenState extends State<AuthScreen> {
                 duration: const Duration(milliseconds: 250),
                 switchInCurve: Curves.easeInOut,
                 switchOutCurve: Curves.easeInOut,
-                layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-                  return Stack(
-                    fit: StackFit.passthrough,
-                    children: <Widget>[
-                      ...previousChildren,
-                      ?currentChild,
-                    ],
-                  );
-                },
+                layoutBuilder:
+                    (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        fit: StackFit.passthrough,
+                        children: <Widget>[...previousChildren, ?currentChild],
+                      );
+                    },
                 child: Column(
                   key: ValueKey<int>(mode),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -542,7 +540,9 @@ class _ModeTab extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: color,
-                        fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                        fontWeight: selected
+                            ? FontWeight.w900
+                            : FontWeight.w700,
                       ),
                     );
                   },

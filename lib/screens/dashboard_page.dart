@@ -41,7 +41,12 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() {
       future = next;
     });
-    await next;
+    try {
+      await next;
+    } catch (_) {
+      // FutureBuilder owns displaying the load error; refresh actions should not
+      // also rethrow it as an unhandled runtime exception.
+    }
   }
 
   @override
@@ -343,17 +348,13 @@ class HeroPill extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 6),
-          Expanded(
-            child: Center(
-              child: Text(
-                '$label $value',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+          Text(
+            '$label $value',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -376,7 +377,8 @@ class DailySpendingCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final dailySpending = dashboard.dailySpending;
     final secondaryBudget = dailySpending.budgetTodaySecondary;
-    final daysLeftText = '${dailySpending.daysUntilMonthEnd} days left in month';
+    final daysLeftText =
+        '${dailySpending.daysUntilMonthEnd} days left in month';
     final budgetDetail = secondaryBudget == null
         ? 'You have a total of ${money(dailySpending.budgetToday, dashboard.reportingCurrency)} to spend today ($daysLeftText)'
         : '${money(dailySpending.budgetToday, dashboard.reportingCurrency)} = ${money(secondaryBudget.amount, secondaryBudget.currency)} today ($daysLeftText)';
@@ -395,10 +397,7 @@ class DailySpendingCards extends StatelessWidget {
     final budgetCard = DailySpendingCard(
       icon: Icons.today_rounded,
       title: 'Daily budget',
-      value: money(
-        dailySpending.budgetToday,
-        dashboard.reportingCurrency,
-      ),
+      value: money(dailySpending.budgetToday, dashboard.reportingCurrency),
       detail: budgetDetail,
       color: AppColors.teal,
       onRefresh: onRefresh,
@@ -408,10 +407,7 @@ class DailySpendingCards extends StatelessWidget {
     final spentCard = DailySpendingCard(
       icon: Icons.shopping_bag_rounded,
       title: 'Spent today',
-      value: money(
-        dailySpending.spentToday,
-        dashboard.reportingCurrency,
-      ),
+      value: money(dailySpending.spentToday, dashboard.reportingCurrency),
       detail: 'Total amount spent today',
       color: AppColors.rose,
     );
@@ -619,8 +615,9 @@ class WalletTile extends StatelessWidget {
                         wallet.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       if (wallet.isDefault) ...[
                         const SizedBox(width: 4),
@@ -995,10 +992,7 @@ class CurrencyTotalTile extends StatelessWidget {
 }
 
 class _SmallRefreshButton extends StatefulWidget {
-  const _SmallRefreshButton({
-    required this.onPressed,
-    required this.dashboard,
-  });
+  const _SmallRefreshButton({required this.onPressed, required this.dashboard});
 
   final FutureOr<void> Function() onPressed;
   final DashboardData dashboard;
@@ -1033,7 +1027,7 @@ class _SmallRefreshButtonState extends State<_SmallRefreshButton>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 13)),
           Text(value, style: const TextStyle(fontSize: 13).merge(valueStyle)),
         ],
       ),
@@ -1043,10 +1037,14 @@ class _SmallRefreshButtonState extends State<_SmallRefreshButton>
   Future<void> _handlePress() async {
     if (_isLoading) return;
 
-    final double combinedBalance = double.tryParse(widget.dashboard.balance) ?? 0;
+    final double combinedBalance =
+        double.tryParse(widget.dashboard.balance) ?? 0;
     final int days = widget.dashboard.dailySpending.daysUntilMonthEnd;
-    final double budget = days > 0 ? (combinedBalance / days) : combinedBalance;
-    final double spent = double.tryParse(widget.dashboard.dailySpending.spentToday) ?? 0;
+    final double spent =
+        double.tryParse(widget.dashboard.dailySpending.spentToday) ?? 0;
+    final double budget = days > 0
+        ? ((combinedBalance + spent) / days)
+        : combinedBalance;
     final double remaining = budget - spent;
     final currency = widget.dashboard.reportingCurrency;
 
@@ -1065,7 +1063,10 @@ class _SmallRefreshButtonState extends State<_SmallRefreshButton>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildCalcRow('Net balance:', money(combinedBalance.toString(), currency)),
+              _buildCalcRow(
+                'Net balance:',
+                money(combinedBalance.toString(), currency),
+              ),
               _buildCalcRow('Days remaining:', '$days days'),
               const Divider(height: 20),
               _buildCalcRow(
@@ -1073,7 +1074,10 @@ class _SmallRefreshButtonState extends State<_SmallRefreshButton>
                 money(budget.toString(), currency),
                 valueStyle: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              _buildCalcRow('Spent today:', '-${money(spent.toString(), currency)}'),
+              _buildCalcRow(
+                'Spent today:',
+                '-${money(spent.toString(), currency)}',
+              ),
               const Divider(height: 20),
               _buildCalcRow(
                 'Remaining today:',
@@ -1086,7 +1090,9 @@ class _SmallRefreshButtonState extends State<_SmallRefreshButton>
               const SizedBox(height: 16),
               Text(
                 'Would you like to refresh and update these calculations?',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
               ),
             ],
           ),

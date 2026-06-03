@@ -439,33 +439,7 @@ class ApiClient {
   Future<DashboardData> dashboard() async {
     try {
       final json = await get('/dashboard');
-      final rawData = DashboardData.fromJson(json);
-
-      // Recalculate daily budget from net amount (combined balance)
-      final double combinedBalance = double.tryParse(rawData.balance) ?? 0;
-      final int days = rawData.dailySpending.daysUntilMonthEnd;
-      final double newBudget = days > 0
-          ? (combinedBalance / days)
-          : combinedBalance;
-      final double spent =
-          double.tryParse(rawData.dailySpending.spentToday) ?? 0;
-      final double newRemaining = newBudget - spent;
-
-      final data = DashboardData(
-        reportingCurrency: rawData.reportingCurrency,
-        balance: rawData.balance,
-        income: rawData.income,
-        expense: rawData.expense,
-        dailySpending: DailySpending(
-          daysUntilMonthEnd: days,
-          budgetToday: newBudget.toStringAsFixed(4),
-          budgetTodaySecondary: rawData.dailySpending.budgetTodaySecondary,
-          spentToday: rawData.dailySpending.spentToday,
-          remainingToday: newRemaining.toStringAsFixed(4),
-        ),
-        totalsByCurrency: rawData.totalsByCurrency,
-        recentTransactions: rawData.recentTransactions,
-      );
+      final data = DashboardData.fromJson(json);
 
       await LocalDb.instance.saveDashboard(data);
       unawaited(syncOutbox());

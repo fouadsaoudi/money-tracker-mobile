@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
@@ -12,6 +13,7 @@ class AppSession extends ChangeNotifier {
   final ApiClient api;
   UserProfile? user;
   bool isRestoring = true;
+  ThemeMode themeMode = ThemeMode.system;
   Timer? _syncTimer;
 
   bool get isSignedIn => api.token != null;
@@ -32,6 +34,10 @@ class AppSession extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     api.baseUrl = prefs.getString(apiBaseUrlPreferenceKey) ?? defaultApiBaseUrl;
     api.token = prefs.getString('auth_token');
+    themeMode = ThemeMode.values.firstWhere(
+      (mode) => mode.name == prefs.getString(themeModePreferenceKey),
+      orElse: () => ThemeMode.system,
+    );
     if (api.token == null) {
       isRestoring = false;
       notifyListeners();
@@ -79,6 +85,14 @@ class AppSession extends ChangeNotifier {
   Future<void> updateReportingCurrency(int currencyId) async {
     user = await api.updatePreferences(currencyId);
     notifyListeners();
+  }
+
+  Future<void> updateThemeMode(ThemeMode value) async {
+    if (value == themeMode) return;
+    themeMode = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(themeModePreferenceKey, value.name);
   }
 
   Future<void> logout() async {

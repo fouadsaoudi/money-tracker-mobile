@@ -35,9 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.rose,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
               child: const Text('Logout'),
             ),
           ],
@@ -136,6 +134,52 @@ class _SettingsPageState extends State<SettingsPage> {
                             },
                     );
                   },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SurfacePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Appearance',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Use your device theme by default, or choose a fixed style.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.settings_brightness_outlined),
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_outlined),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_outlined),
+                        label: Text('Dark'),
+                      ),
+                    ],
+                    selected: {widget.session.themeMode},
+                    onSelectionChanged: (selection) {
+                      widget.session.updateThemeMode(selection.first);
+                    },
+                  ),
                 ),
               ],
             ),

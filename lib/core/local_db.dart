@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/models.dart';
+import 'helpers.dart';
 
 class LocalDb {
   LocalDb._privateConstructor();
@@ -586,7 +587,37 @@ class LocalDb {
     final db = await database;
     final res = await db.query('dashboard_cache', where: 'id = 1');
     if (res.isEmpty) return null;
-    return DashboardData.fromJson(jsonDecode(res.first['json_data'] as String));
+    final data = DashboardData.fromJson(
+      jsonDecode(res.first['json_data'] as String),
+    );
+    return _rollDashboardForward(data);
+  }
+
+  DashboardData _rollDashboardForward(DashboardData data) {
+    final now = DateTime.now();
+    final today = isoDate(now);
+    if (data.dailySpending.asOfDate == today) return data;
+
+    final daysUntilMonthEnd =
+        DateTime(now.year, now.month + 1, 0).day - now.day + 1;
+    final balance = double.tryParse(data.balance) ?? 0;
+    final budget = balance / daysUntilMonthEnd;
+
+    return DashboardData(
+      reportingCurrency: data.reportingCurrency,
+      balance: data.balance,
+      income: data.income,
+      expense: data.expense,
+      dailySpending: DailySpending(
+        asOfDate: today,
+        daysUntilMonthEnd: daysUntilMonthEnd,
+        budgetToday: budget.toStringAsFixed(4),
+        spentToday: '0.0000',
+        remainingToday: budget.toStringAsFixed(4),
+      ),
+      totalsByCurrency: data.totalsByCurrency,
+      recentTransactions: data.recentTransactions,
+    );
   }
 
   Map<String, dynamic> _dashboardToJsonMap(DashboardData data) {
@@ -596,6 +627,7 @@ class LocalDb {
       'combined_income': data.income,
       'combined_expense': data.expense,
       'daily_spending': {
+        'as_of_date': data.dailySpending.asOfDate,
         'days_until_month_end': data.dailySpending.daysUntilMonthEnd,
         'budget_today': data.dailySpending.budgetToday,
         'budget_today_secondary':
@@ -897,7 +929,8 @@ class LocalDb {
       }
 
       final double newBudget = dashboard.dailySpending.daysUntilMonthEnd > 0
-          ? (newTotalBalance / dashboard.dailySpending.daysUntilMonthEnd)
+          ? ((newTotalBalance + newSpent) /
+                dashboard.dailySpending.daysUntilMonthEnd)
           : newTotalBalance;
       final double newRemaining = newBudget - newSpent;
 
@@ -907,6 +940,7 @@ class LocalDb {
         income: newTotalIncome.toStringAsFixed(4),
         expense: newTotalExpense.toStringAsFixed(4),
         dailySpending: DailySpending(
+          asOfDate: dashboard.dailySpending.asOfDate,
           daysUntilMonthEnd: dashboard.dailySpending.daysUntilMonthEnd,
           budgetToday: newBudget.toStringAsFixed(4),
           budgetTodaySecondary: dashboard.dailySpending.budgetTodaySecondary,
@@ -1197,7 +1231,8 @@ class LocalDb {
       }
 
       final double newBudget = dashboard.dailySpending.daysUntilMonthEnd > 0
-          ? (newTotalBalance / dashboard.dailySpending.daysUntilMonthEnd)
+          ? ((newTotalBalance + newSpent) /
+                dashboard.dailySpending.daysUntilMonthEnd)
           : newTotalBalance;
       final double newRemaining = newBudget - newSpent;
 
@@ -1208,6 +1243,7 @@ class LocalDb {
           income: newTotalIncome.toStringAsFixed(4),
           expense: newTotalExpense.toStringAsFixed(4),
           dailySpending: DailySpending(
+            asOfDate: dashboard.dailySpending.asOfDate,
             daysUntilMonthEnd: dashboard.dailySpending.daysUntilMonthEnd,
             budgetToday: newBudget.toStringAsFixed(4),
             budgetTodaySecondary: dashboard.dailySpending.budgetTodaySecondary,

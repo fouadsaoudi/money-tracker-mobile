@@ -335,6 +335,7 @@ class DashboardData {
 
 class DailySpending {
   DailySpending({
+    required this.asOfDate,
     required this.daysUntilMonthEnd,
     required this.budgetToday,
     this.budgetTodaySecondary,
@@ -344,6 +345,7 @@ class DailySpending {
 
   factory DailySpending.fromJson(Map<String, dynamic> json) {
     return DailySpending(
+      asOfDate: '${json['as_of_date'] ?? ''}',
       daysUntilMonthEnd: asInt(json['days_until_month_end']),
       budgetToday: '${json['budget_today'] ?? '0'}',
       budgetTodaySecondary: json['budget_today_secondary'] == null
@@ -354,6 +356,7 @@ class DailySpending {
     );
   }
 
+  final String asOfDate;
   final int daysUntilMonthEnd;
   final String budgetToday;
   final ConvertedMoney? budgetTodaySecondary;

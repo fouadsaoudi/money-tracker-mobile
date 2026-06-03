@@ -425,7 +425,7 @@ class MoneyBottomNavigation extends StatelessWidget {
         child: Container(
           height: 72,
           padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
           child: Row(

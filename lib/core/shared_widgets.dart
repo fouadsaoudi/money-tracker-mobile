@@ -1141,7 +1141,7 @@ class TypeBadge extends StatelessWidget {
       ),
       child: Text(
         defaultWallet
-            ? 'Pri.'
+            ? 'Default'
             : archived
             ? 'Archived'
             : incoming

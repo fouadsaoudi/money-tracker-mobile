@@ -68,6 +68,32 @@ class Currency {
   final bool isActive;
 }
 
+class ExchangeRate {
+  ExchangeRate({
+    required this.id,
+    required this.rate,
+    this.effectiveAt,
+    required this.fromCurrency,
+    required this.toCurrency,
+  });
+
+  factory ExchangeRate.fromJson(Map<String, dynamic> json) {
+    return ExchangeRate(
+      id: asInt(json['id']),
+      rate: '${json['rate'] ?? '0'}',
+      effectiveAt: DateTime.tryParse('${json['effective_at'] ?? ''}'),
+      fromCurrency: Currency.fromJson(asMap(json['from_currency'])),
+      toCurrency: Currency.fromJson(asMap(json['to_currency'])),
+    );
+  }
+
+  final int id;
+  final String rate;
+  final DateTime? effectiveAt;
+  final Currency fromCurrency;
+  final Currency toCurrency;
+}
+
 class Category {
   Category({
     required this.id,

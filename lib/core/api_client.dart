@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint;
 import 'package:http/http.dart' as http;
 
 import '../models/models.dart';
@@ -69,6 +69,52 @@ class ApiClient {
       'reporting_currency_id': reportingCurrencyId,
     });
     return UserProfile.fromJson(asMap(json['user']));
+  }
+
+  Future<List<ExchangeRate>> exchangeRates() async {
+    final json = await get('/exchange-rates');
+    return asList(
+      json['data'],
+    ).map((item) => ExchangeRate.fromJson(asMap(item))).toList();
+  }
+
+  Future<ExchangeRate> createExchangeRate({
+    required int fromCurrencyId,
+    required int toCurrencyId,
+    required String rate,
+    DateTime? effectiveAt,
+  }) async {
+    final json = await post('/exchange-rates', {
+      'from_currency_id': fromCurrencyId,
+      'to_currency_id': toCurrencyId,
+      'rate': rate,
+      'effective_at': effectiveAt == null ? null : isoDateTime(effectiveAt),
+    });
+    return ExchangeRate.fromJson(asMap(json['data']));
+  }
+
+  Future<ExchangeRate> updateExchangeRate({
+    required int id,
+    required int fromCurrencyId,
+    required int toCurrencyId,
+    required String rate,
+    DateTime? effectiveAt,
+  }) async {
+    final json = await send(
+      'PUT',
+      '/exchange-rates/$id',
+      body: {
+        'from_currency_id': fromCurrencyId,
+        'to_currency_id': toCurrencyId,
+        'rate': rate,
+        'effective_at': effectiveAt == null ? null : isoDateTime(effectiveAt),
+      },
+    );
+    return ExchangeRate.fromJson(asMap(json['data']));
+  }
+
+  Future<void> deleteExchangeRate(int id) async {
+    await delete('/exchange-rates/$id');
   }
 
   Future<List<Currency>> currencies() async {
@@ -628,13 +674,14 @@ class ApiClient {
       'occurred_on': isoDateTime(occurredOn),
     };
     final json = invoiceImages.isEmpty
-        ? await post('/transactions', body)
+        ? await post('/transactions', body, debugLabel: 'Save transaction')
         : await multipart(
             'POST',
             '/transactions',
             fields: body,
             fileField: 'invoice_images[]',
             files: invoiceImages,
+            debugLabel: 'Save transaction',
           );
     return TransactionRecord.fromJson(asMap(json['data']));
   }
@@ -1019,8 +1066,12 @@ class ApiClient {
     return send('GET', path, query: query);
   }
 
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) {
-    return send('POST', path, body: body);
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    String? debugLabel,
+  }) {
+    return send('POST', path, body: body, debugLabel: debugLabel);
   }
 
   Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) {
@@ -1036,6 +1087,7 @@ class ApiClient {
     String path, {
     Map<String, String>? query,
     Map<String, dynamic>? body,
+    String? debugLabel,
   }) async {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     final request = http.Request(method, uri);
@@ -1046,6 +1098,10 @@ class ApiClient {
     });
     if (body != null) {
       request.body = jsonEncode(body);
+    }
+    if (debugLabel != null) {
+      debugPrint('[$debugLabel] API: $method $uri');
+      debugPrint('[$debugLabel] Payload: ${jsonEncode(body ?? {})}');
     }
 
     final http.StreamedResponse response;
@@ -1062,7 +1118,7 @@ class ApiClient {
       rethrow;
     }
     connectionStatus.value = true;
-    return handleResponse(response);
+    return handleResponse(response, debugLabel: debugLabel);
   }
 
   Future<Map<String, dynamic>> multipart(
@@ -1071,6 +1127,7 @@ class ApiClient {
     required Map<String, dynamic> fields,
     required String fileField,
     required List<InvoiceImageUpload> files,
+    String? debugLabel,
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final request = http.MultipartRequest(method, uri);
@@ -1101,6 +1158,13 @@ class ApiClient {
         ),
       );
     }
+    if (debugLabel != null) {
+      debugPrint('[$debugLabel] API: $method $uri');
+      debugPrint('[$debugLabel] Payload: ${jsonEncode(fields)}');
+      debugPrint(
+        '[$debugLabel] Files: ${jsonEncode(files.map((file) => {'field': fileField, 'filename': file.filename, 'bytes': file.bytes.length}).toList())}',
+      );
+    }
 
     final http.StreamedResponse response;
     try {
@@ -1116,13 +1180,18 @@ class ApiClient {
       rethrow;
     }
     connectionStatus.value = true;
-    return handleResponse(response);
+    return handleResponse(response, debugLabel: debugLabel);
   }
 
   Future<Map<String, dynamic>> handleResponse(
-    http.StreamedResponse response,
-  ) async {
+    http.StreamedResponse response, {
+    String? debugLabel,
+  }) async {
     final text = await response.stream.bytesToString();
+    if (debugLabel != null) {
+      debugPrint('[$debugLabel] Response status: ${response.statusCode}');
+      debugPrint('[$debugLabel] Response body: $text');
+    }
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
     final json = decoded is Map<String, dynamic>
         ? decoded

@@ -52,9 +52,21 @@ String shortDateTime(DateTime value) {
   return '$weekday ${value.day} $month $hour:$minute';
 }
 
+String decimalText(String amount, {int maxFractionDigits = 2}) {
+  final value = double.tryParse(amount);
+  if (value == null) return amount;
+
+  final fixed = value.toStringAsFixed(maxFractionDigits);
+  if (!fixed.contains('.')) return fixed;
+
+  return fixed
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
+}
+
 String money(String amount, dynamic currency) {
   final value = double.tryParse(amount) ?? 0;
-  final decimals = currency?.decimalPlaces.clamp(0, 4) ?? 2;
+  final decimals = currency?.decimalPlaces.clamp(0, 2) ?? 2;
   final code = currency?.code ?? '';
   final fixed = value.toStringAsFixed(decimals);
   final parts = fixed.split('.');

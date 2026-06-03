@@ -558,7 +558,7 @@ class _TransactionFormState extends State<TransactionForm> {
   void initState() {
     super.initState();
     final transaction = widget.transaction;
-    amount.text = transaction?.amount ?? '';
+    amount.text = transaction == null ? '' : decimalText(transaction.amount);
     note.text = transaction?.note ?? '';
     type = transaction?.type ?? 'outgoing';
     occurredOn = transaction?.occurredOn ?? DateTime.now();
@@ -1016,52 +1016,94 @@ class _TransactionFormState extends State<TransactionForm> {
       error = null;
     });
     try {
-      final transaction = widget.transaction;
-      final invoiceUploads = invoiceImages
-          .map(
-            (image) =>
-                InvoiceImageUpload(bytes: image.bytes, filename: image.name),
-          )
-          .toList();
-      if (type == 'convert') {
-        await widget.session.api.convertWalletMoney(
-          sourceWalletId: walletId!,
-          destinationWalletId: destinationWalletId!,
-          sourceAmount: amount.text.trim(),
-          destinationAmount: destinationAmount.text.trim(),
-          occurredOn: occurredOn,
-          note: note.text.trim().isEmpty ? null : note.text.trim(),
-        );
-      } else if (transaction == null) {
-        await widget.session.api.createTransaction(
-          categoryId: categoryId!,
-          walletId: walletId!,
-          type: type,
-          amount: amount.text.trim(),
-          occurredOn: occurredOn,
-          note: note.text.trim().isEmpty ? null : note.text.trim(),
-          invoiceImages: invoiceUploads,
-        );
-      } else {
-        await widget.session.api.updateTransaction(
-          id: transaction.id,
-          categoryId: categoryId!,
-          walletId: walletId!,
-          type: type,
-          amount: amount.text.trim(),
-          occurredOn: occurredOn,
-          note: note.text.trim().isEmpty ? null : note.text.trim(),
-          invoiceImages: invoiceUploads,
-          removeInvoiceImages: removeExistingInvoiceImages,
-          removeInvoiceImageIds: removedExistingInvoiceImageIds.toList(),
-        );
-      }
+      await submitSave();
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (exception) {
-      setState(() => error = exception.message);
+      final resolved = await resolveMissingExchangeRate(exception);
+      if (resolved && mounted) {
+        try {
+          await submitSave();
+          if (mounted) Navigator.pop(context, true);
+        } on ApiException catch (retryException) {
+          if (mounted) setState(() => error = retryException.message);
+        }
+      } else if (mounted) {
+        setState(() => error = exception.message);
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  Future<void> submitSave() async {
+    final transaction = widget.transaction;
+    final invoiceUploads = invoiceImages
+        .map(
+          (image) =>
+              InvoiceImageUpload(bytes: image.bytes, filename: image.name),
+        )
+        .toList();
+    if (type == 'convert') {
+      await widget.session.api.convertWalletMoney(
+        sourceWalletId: walletId!,
+        destinationWalletId: destinationWalletId!,
+        sourceAmount: amount.text.trim(),
+        destinationAmount: destinationAmount.text.trim(),
+        occurredOn: occurredOn,
+        note: note.text.trim().isEmpty ? null : note.text.trim(),
+      );
+    } else if (transaction == null) {
+      await widget.session.api.createTransaction(
+        categoryId: categoryId!,
+        walletId: walletId!,
+        type: type,
+        amount: amount.text.trim(),
+        occurredOn: occurredOn,
+        note: note.text.trim().isEmpty ? null : note.text.trim(),
+        invoiceImages: invoiceUploads,
+      );
+    } else {
+      await widget.session.api.updateTransaction(
+        id: transaction.id,
+        categoryId: categoryId!,
+        walletId: walletId!,
+        type: type,
+        amount: amount.text.trim(),
+        occurredOn: occurredOn,
+        note: note.text.trim().isEmpty ? null : note.text.trim(),
+        invoiceImages: invoiceUploads,
+        removeInvoiceImages: removeExistingInvoiceImages,
+        removeInvoiceImageIds: removedExistingInvoiceImageIds.toList(),
+      );
+    }
+  }
+
+  Future<bool> resolveMissingExchangeRate(ApiException exception) async {
+    if (!exception.errors.containsKey('currency_id')) return false;
+
+    final reportingCurrency = widget.session.user?.reportingCurrency;
+    final wallet = selectedWallet;
+    if (reportingCurrency == null ||
+        wallet == null ||
+        wallet.currency.id == reportingCurrency.id) {
+      return false;
+    }
+
+    final effectiveAt = DateTime(
+      occurredOn.year,
+      occurredOn.month,
+      occurredOn.day,
+    );
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => ExchangeRateDialog(
+            session: widget.session,
+            fromCurrency: reportingCurrency,
+            toCurrency: wallet.currency,
+            effectiveAt: effectiveAt,
+          ),
+        ) ??
+        false;
   }
 
   List<Category> get selectableCategories {
@@ -1078,6 +1120,132 @@ class _TransactionFormState extends State<TransactionForm> {
     }
 
     return null;
+  }
+
+  Wallet? get selectedWallet {
+    for (final wallet in widget.bundle.wallets) {
+      if (wallet.id == walletId) return wallet;
+    }
+
+    return null;
+  }
+}
+
+class ExchangeRateDialog extends StatefulWidget {
+  const ExchangeRateDialog({
+    super.key,
+    required this.session,
+    required this.fromCurrency,
+    required this.toCurrency,
+    required this.effectiveAt,
+  });
+
+  final AppSession session;
+  final Currency fromCurrency;
+  final Currency toCurrency;
+  final DateTime effectiveAt;
+
+  @override
+  State<ExchangeRateDialog> createState() => _ExchangeRateDialogState();
+}
+
+class _ExchangeRateDialogState extends State<ExchangeRateDialog> {
+  final rate = TextEditingController();
+  bool busy = false;
+  String? error;
+
+  @override
+  void dispose() {
+    rate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Exchange rate required'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Enter the rate to save this transaction.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rate,
+              enabled: !busy,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText:
+                    '1 ${widget.fromCurrency.code} = ? ${widget.toCurrency.code}',
+              ),
+            ),
+            if (error != null) MessageBanner(text: error!, isError: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: busy ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: busy ? null : save,
+          child: busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save rate'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> save() async {
+    final value = rate.text.trim();
+    if (value.isEmpty) {
+      setState(() => error = 'Enter an exchange rate.');
+      return;
+    }
+
+    setState(() {
+      busy = true;
+      error = null;
+    });
+
+    try {
+      await widget.session.api.createExchangeRate(
+        fromCurrencyId: widget.fromCurrency.id,
+        toCurrencyId: widget.toCurrency.id,
+        rate: value,
+        effectiveAt: widget.effectiveAt,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on ApiException catch (exception) {
+      if (mounted) {
+        setState(() {
+          busy = false;
+          error = exception.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          busy = false;
+          error = 'Could not save the exchange rate.';
+        });
+      }
+    }
   }
 }
 

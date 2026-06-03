@@ -381,7 +381,7 @@ class DailySpendingCards extends StatelessWidget {
         '${dailySpending.daysUntilMonthEnd} days left in month';
     final budgetDetail = secondaryBudget == null
         ? 'You have a total of ${money(dailySpending.budgetToday, dashboard.reportingCurrency)} to spend today ($daysLeftText)'
-        : '${money(dailySpending.budgetToday, dashboard.reportingCurrency)} = ${money(secondaryBudget.amount, secondaryBudget.currency)} today ($daysLeftText)';
+        : '${money(secondaryBudget.amount, secondaryBudget.currency)} ($daysLeftText)';
     final remainingToday = double.tryParse(dailySpending.remainingToday) ?? 0;
     final remainingText = money(
       remainingToday < 0
@@ -424,30 +424,34 @@ class DailySpendingCards extends StatelessWidget {
     final isWide = MediaQuery.sizeOf(context).width >= 720;
 
     if (isWide) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: budgetCard),
-          const SizedBox(width: 12),
-          Expanded(child: spentCard),
-          const SizedBox(width: 12),
-          Expanded(child: remainingCard),
-        ],
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: budgetCard),
+            const SizedBox(width: 12),
+            Expanded(child: spentCard),
+            const SizedBox(width: 12),
+            Expanded(child: remainingCard),
+          ],
+        ),
       );
     } else {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: budgetCard),
-              const SizedBox(width: 12),
-              Expanded(child: spentCard),
-            ],
-          ),
+          budgetCard,
           const SizedBox(height: 12),
-          remainingCard,
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: spentCard),
+                const SizedBox(width: 12),
+                Expanded(child: remainingCard),
+              ],
+            ),
+          ),
         ],
       );
     }
@@ -479,7 +483,6 @@ class DailySpendingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 124),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -817,7 +820,7 @@ class _EditWalletDialogState extends State<EditWalletDialog> {
   void initState() {
     super.initState();
     name = TextEditingController(text: widget.wallet.name);
-    balance = TextEditingController(text: widget.wallet.balance);
+    balance = TextEditingController(text: decimalText(widget.wallet.balance));
     isDefault = widget.wallet.isDefault;
   }
 

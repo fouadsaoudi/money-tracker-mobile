@@ -18,15 +18,15 @@ class AppColors {
   static bool get _isDark => _brightness == Brightness.dark;
 
   static Color get ink =>
-      _isDark ? const Color(0xfff3f4f6) : const Color(0xff151515);
+      _isDark ? const Color(0xfff6f8f4) : const Color(0xff151515);
   static Color get muted =>
-      _isDark ? const Color(0xffa7b0ad) : const Color(0xff66726d);
+      _isDark ? const Color(0xffa8b3ad) : const Color(0xff66726d);
   static Color get canvas =>
-      _isDark ? const Color(0xff111817) : const Color(0xfff4f7f3);
+      _isDark ? const Color(0xff0b1211) : const Color(0xfff4f7f3);
   static Color get surface =>
-      _isDark ? const Color(0xff1b2523) : const Color(0xffffffff);
+      _isDark ? const Color(0xff17211f) : const Color(0xffffffff);
   static Color get border =>
-      _isDark ? const Color(0xff34423f) : const Color(0xffdde6df);
+      _isDark ? const Color(0xff2d3c38) : const Color(0xffdde6df);
   static const authBackground = Color(0xff151515);
   static const teal = Color(0xff0f766e);
   static const blue = Color(0xff2563eb);

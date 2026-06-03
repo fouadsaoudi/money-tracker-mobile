@@ -72,12 +72,33 @@ class _MoneyTrackerAppState extends State<MoneyTrackerApp>
   }
 
   ThemeData _buildTheme(Brightness brightness) {
+    final colorScheme = brightness == Brightness.dark
+        ? const ColorScheme.dark(
+            primary: Color(0xff2dd4bf),
+            onPrimary: Color(0xff042f2e),
+            primaryContainer: Color(0xff134e4a),
+            onPrimaryContainer: Color(0xffccfbf1),
+            secondary: Color(0xff93c5fd),
+            onSecondary: Color(0xff0f172a),
+            secondaryContainer: Color(0xff1e3a5f),
+            onSecondaryContainer: Color(0xffdbeafe),
+            tertiary: Color(0xfffbbf24),
+            onTertiary: Color(0xff271700),
+            error: Color(0xfffb7185),
+            onError: Color(0xff4c0519),
+            surface: Color(0xff17211f),
+            onSurface: Color(0xfff6f8f4),
+            surfaceContainerHighest: Color(0xff22302c),
+            outline: Color(0xff4b5f59),
+          )
+        : ColorScheme.fromSeed(
+            seedColor: AppColors.teal,
+            brightness: Brightness.light,
+          );
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.teal,
-        brightness: brightness,
-      ),
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.canvas,
       textTheme: Theme.of(
         context,

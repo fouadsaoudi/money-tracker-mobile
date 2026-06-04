@@ -10,6 +10,7 @@ import '../core/app_session.dart';
 import '../core/helpers.dart';
 import '../core/shared_widgets.dart';
 import '../models/models.dart';
+import 'categories_page.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key, required this.session});
@@ -519,7 +520,7 @@ class TransactionsBundle {
   });
 
   PagedTransactions transactions;
-  final List<Category> categories;
+  List<Category> categories;
   final List<Wallet> wallets;
 }
 
@@ -540,6 +541,8 @@ class TransactionForm extends StatefulWidget {
 }
 
 class _TransactionFormState extends State<TransactionForm> {
+  static const createCategoryDropdownValue = -2147483648;
+
   final amount = TextEditingController();
   final destinationAmount = TextEditingController();
   final note = TextEditingController();
@@ -709,17 +712,28 @@ class _TransactionFormState extends State<TransactionForm> {
             ] else ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
+                key: ValueKey(categoryId),
                 initialValue: categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),
-                items: categories
-                    .map(
-                      (category) => DropdownMenuItem(
-                        value: category.id,
-                        child: Text(category.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => categoryId = value),
+                items: [
+                  ...categories.map(
+                    (category) => DropdownMenuItem(
+                      value: category.id,
+                      child: Text(category.name),
+                    ),
+                  ),
+                  const DropdownMenuItem(
+                    value: createCategoryDropdownValue,
+                    child: Row(
+                      children: [
+                        Icon(Icons.add, size: 18),
+                        SizedBox(width: 8),
+                        Text('Create new category'),
+                      ],
+                    ),
+                  ),
+                ],
+                onChanged: handleCategoryChanged,
               ),
             ],
             const SizedBox(height: 12),
@@ -748,7 +762,7 @@ class _TransactionFormState extends State<TransactionForm> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
               ),
-              onPressed: busy || !hasWallets ? null : save,
+              onPressed: canSaveTransaction ? save : null,
               icon: const Icon(Icons.save_outlined),
               label: Text(editing ? 'Save changes' : 'Save transaction'),
             ),
@@ -1009,7 +1023,7 @@ class _TransactionFormState extends State<TransactionForm> {
 
   Future<void> save() async {
     if (walletId == null) return;
-    if (type != 'convert' && categoryId == null) return;
+    if (type != 'convert' && !hasValidCategory) return;
     if (type == 'convert' && destinationWalletId == null) return;
     setState(() {
       busy = true;
@@ -1109,9 +1123,52 @@ class _TransactionFormState extends State<TransactionForm> {
   List<Category> get selectableCategories {
     final transactionCategoryId = widget.transaction?.category?.id;
 
-    return widget.bundle.categories
-        .where((item) => !item.isArchived || item.id == transactionCategoryId)
-        .toList();
+    final byId = <int, Category>{};
+    for (final item in widget.bundle.categories) {
+      if (!item.isArchived || item.id == transactionCategoryId) {
+        byId[item.id] = item;
+      }
+    }
+
+    return byId.values.toList();
+  }
+
+  bool get canSaveTransaction {
+    if (busy || walletId == null) return false;
+    if (type == 'convert') return destinationWalletId != null;
+    return hasValidCategory;
+  }
+
+  bool get hasValidCategory {
+    return categoryId != null && categoryId != createCategoryDropdownValue;
+  }
+
+  Future<void> handleCategoryChanged(int? value) async {
+    if (value == createCategoryDropdownValue) {
+      await createCategoryFromTransaction();
+      return;
+    }
+
+    setState(() => categoryId = value);
+  }
+
+  Future<void> createCategoryFromTransaction() async {
+    setState(() => categoryId = null);
+    final created = await showDialog<Category>(
+      context: context,
+      builder: (context) => CategoryDialog(api: widget.session.api),
+    );
+    if (!mounted) return;
+
+    setState(() {
+      if (created == null) return;
+
+      widget.bundle.categories = [
+        ...widget.bundle.categories.where((item) => item.id != created.id),
+        created,
+      ];
+      categoryId = created.id;
+    });
   }
 
   int? firstOtherWalletId(int? sourceWalletId) {

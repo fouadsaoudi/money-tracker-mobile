@@ -9,6 +9,7 @@ import '../core/app_session.dart';
 import '../core/helpers.dart';
 import '../core/shared_widgets.dart';
 import '../models/models.dart';
+import 'transactions_page.dart';
 
 class GoalsPage extends StatefulWidget {
   const GoalsPage({super.key, required this.session});
@@ -29,12 +30,14 @@ class _GoalsPageState extends State<GoalsPage> {
       widget.session.api.goals(),
       widget.session.api.currencies(),
       widget.session.api.wallets(),
+      widget.session.api.categories(),
     ]);
 
     return GoalsBundle(
       goals: results[0] as List<Goal>,
       currencies: results[1] as List<Currency>,
       wallets: results[2] as List<Wallet>,
+      categories: results[3] as List<Category>,
     );
   }
 
@@ -88,7 +91,7 @@ class _GoalsPageState extends State<GoalsPage> {
                     ...bundle.goals.map(
                       (goal) => GoalCard(
                         goal: goal,
-                        onOpen: () => showGoalDetails(goal),
+                        onOpen: () => showGoalDetails(bundle, goal),
                         onContribute: () => addContribution(bundle, goal),
                       ),
                     ),
@@ -124,7 +127,7 @@ class _GoalsPageState extends State<GoalsPage> {
     if (created == true) reload();
   }
 
-  Future<void> showGoalDetails(Goal goal) {
+  Future<void> showGoalDetails(GoalsBundle bundle, Goal goal) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -134,10 +137,61 @@ class _GoalsPageState extends State<GoalsPage> {
         initialChildSize: 0.6,
         minChildSize: 0.35,
         maxChildSize: 1,
-        builder: (_, scrollController) =>
-            GoalDetailsSheet(goal: goal, scrollController: scrollController),
+        builder: (_, scrollController) => GoalDetailsSheet(
+          goal: goal,
+          scrollController: scrollController,
+          onEditTransaction: (transaction) =>
+              editGoalTransaction(bundle, goal.id, transaction),
+        ),
       ),
     );
+  }
+
+  Future<Goal?> editGoalTransaction(
+    GoalsBundle bundle,
+    int goalId,
+    TransactionRecord transaction,
+  ) async {
+    final updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => TransactionForm(
+        session: widget.session,
+        bundle: TransactionsBundle(
+          transactions: PagedTransactions(
+            data: [transaction],
+            total: 1,
+            currentPage: 1,
+            lastPage: 1,
+          ),
+          categories: bundle.categories,
+          wallets: bundle.wallets,
+        ),
+        transaction: transaction,
+      ),
+    );
+    if (updated != true) return null;
+
+    try {
+      final refreshed = await load();
+      if (!mounted) return null;
+      setState(() {
+        future = Future.value(refreshed);
+      });
+      for (final goal in refreshed.goals) {
+        if (goal.id == goalId) return goal;
+      }
+    } catch (error) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Transaction saved, but refresh failed: $error'),
+        ),
+      );
+    }
+
+    return null;
   }
 }
 
@@ -146,11 +200,13 @@ class GoalsBundle {
     required this.goals,
     required this.currencies,
     required this.wallets,
+    required this.categories,
   });
 
   final List<Goal> goals;
   final List<Currency> currencies;
   final List<Wallet> wallets;
+  final List<Category> categories;
 }
 
 class GoalCard extends StatelessWidget {
@@ -286,22 +342,45 @@ class GoalCard extends StatelessWidget {
   }
 }
 
-class GoalDetailsSheet extends StatelessWidget {
+class GoalDetailsSheet extends StatefulWidget {
   const GoalDetailsSheet({
     super.key,
     required this.goal,
     required this.scrollController,
+    required this.onEditTransaction,
   });
 
   final Goal goal;
   final ScrollController scrollController;
+  final Future<Goal?> Function(TransactionRecord transaction) onEditTransaction;
+
+  @override
+  State<GoalDetailsSheet> createState() => _GoalDetailsSheetState();
+}
+
+class _GoalDetailsSheetState extends State<GoalDetailsSheet> {
+  late Goal goal;
+
+  @override
+  void initState() {
+    super.initState();
+    goal = widget.goal;
+  }
+
+  Future<void> editTransaction(TransactionRecord transaction) async {
+    final updatedGoal = await widget.onEditTransaction(transaction);
+    if (!mounted || updatedGoal == null) return;
+    setState(() {
+      goal = updatedGoal;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: ListView(
-        controller: scrollController,
+        controller: widget.scrollController,
         children: [
           Text(
             goal.name,
@@ -335,7 +414,11 @@ class GoalDetailsSheet extends StatelessWidget {
             ...goal.recentContributions.map((contribution) {
               final transaction = contribution.transaction;
               if (transaction != null) {
-                return TransactionTile(transaction);
+                return InkWell(
+                  onTap: () => editTransaction(transaction),
+                  borderRadius: BorderRadius.circular(16),
+                  child: TransactionTile(transaction),
+                );
               }
 
               return CompactContributionRow(

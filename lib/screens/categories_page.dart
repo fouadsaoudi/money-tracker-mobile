@@ -79,11 +79,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 
   Future<void> addCategory() async {
-    final created = await showDialog<bool>(
+    final created = await showDialog<Category>(
       context: context,
       builder: (_) => CategoryDialog(api: widget.session.api),
     );
-    if (created == true) {
+    if (created != null) {
       setState(() {
         future = widget.session.api.categories();
       });
@@ -215,7 +215,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: busy ? null : () => Navigator.pop(context, false),
+          onPressed: busy ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         FilledButton(onPressed: busy ? null : save, child: const Text('Save')),
@@ -250,12 +250,12 @@ class _CategoryDialogState extends State<CategoryDialog> {
       error = null;
     });
     try {
-      await widget.api.createCategory(
+      final category = await widget.api.createCategory(
         name: name.text.trim(),
         color: selectedColor,
         icon: selectedIcon,
       );
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, category);
     } on ApiException catch (exception) {
       setState(() => error = exception.message);
     } finally {
@@ -440,7 +440,9 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
                                     border: Border.all(
                                       color: widget.selectedIcon == option.key
                                           ? color
-                                          : AppColors.border.withValues(alpha: 0.6),
+                                          : AppColors.border.withValues(
+                                              alpha: 0.6,
+                                            ),
                                       width: widget.selectedIcon == option.key
                                           ? 2
                                           : 1,
@@ -510,7 +512,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.5),
+                ),
               ),
               child: Text(
                 hex,
